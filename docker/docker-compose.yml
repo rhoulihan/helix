@@ -1,0 +1,39 @@
+version: '3.8'
+services:
+  mongodb:
+    image: mongo:8.2
+    container_name: helix-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+      - ./mongo-init:/docker-entrypoint-initdb.d:ro
+    command: mongod --wiredTigerCacheSizeGB 1.5
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '2.0'
+
+  oracle:
+    image: container-registry.oracle.com/database/adb-free:latest
+    container_name: helix-oracle
+    ports:
+      - "1521:1522"
+      - "1522:1522"
+      - "8443:8443"
+      - "27018:27017"
+    environment:
+      - WORKLOAD_TYPE=ATP
+    volumes:
+      - oracle-data:/u01/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -ks https://localhost:8443/ords/admin/_/db-api/stable/metadata-catalog/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 20
+      start_period: 300s
+
+volumes:
+  mongo-data:
+  oracle-data:

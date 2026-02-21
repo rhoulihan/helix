@@ -1,0 +1,219 @@
+{
+  "_id": "123_1234567", // can be IBDID_uniqueID of the client or userId(in case of advisor/investor user)_uniqueId of the client
+  "partyRoleId": {
+    "$numberLong": "0"
+  },
+  "partyId": {
+    "$numberLong": "1234567" //user's Id
+  },
+  "conversionInProgress": false,
+  "dataOwnerPartyRoleId": {
+    "$numberLong": "{IBDID}"
+  },
+  "entitlements": {
+    "advisoryContext": [ //book Ids
+      "1000000001234",
+      "1000000005678"
+    ],
+    "pxClients": {
+      "pxClientNm": "XYZ Investment Research, Inc.",
+      "dataOwnerPartyRoleId": {
+        "$numberLong": "123" //IBDID
+      }
+    }
+	"pxPartyRoleIdList:{
+		"1234567",... //userIds in case if this doc is for advisor/investor users
+	}
+  },
+  "advisorHierarchy": [ //book's hierarchy
+    {
+      "partyNodePathNm": "Region",
+      "partyNodePathValue": "123-Region"
+    },
+    {
+      "partyNodePathNm": "Firm",
+      "partyNodePathValue": "123"
+    },
+    {
+      "partyNodePathNm": "IPPersonTeam",
+      "partyNodePathValue": "992883590"
+    },
+    {
+      "partyNodePathNm": "IPPersonTeam",
+      "partyNodePathValue": "096491474"
+    }
+  ],
+  "investorId": "100000000000", //client Id
+  "personaNm": [ //record for which type of user
+    "Home Office",
+    "Wove Administrator"
+  ],
+  "partyRoleTypeCd": "null",
+  "firstNm": "null",
+  "lastNm": "null",
+  "personaCd": "null",
+  "entity": "Client",
+  "totalMarketValue": 17956.73234,
+  "totalAccounts": {
+    "$numberLong": "1"
+  },
+  "totalViewableAccountsMarketValue": 17956.73234,
+  "totalViewableAccountCount": {
+    "$numberLong": "1"
+  },
+  "advisors": [ //book details
+    {
+      "advisorId": "1000000001234",
+      "advisorTaxId": "12345678",
+      "advisorName": "KEVIN ABCD",
+      "state": "PA",
+      "finInstId": {
+        "$numberLong": "123" //IBDID
+      },
+      "lastName": "ABCD",
+      "firstName": "KEVIN",
+      "middleName": "S",
+      "advAddrLine1": "RR 2 BOX 231A",
+      "city": "NEWNAN",
+      "zipCode": "71260     ",
+      "country": "USA",
+      "businessPhone": "816-818-2605",
+      "fax": "301-832-5793",
+      "pxClientId": {
+        "$numberLong": "123" //IBDID
+      },
+      "pxClientNameadv": "XYZ Investment Research, Inc.",
+      "isPrimary": false,
+      "email": "admin@abcd.com",
+      "bookRoles": [
+        "Home Office"
+      ],
+      "bookType": "WRI",
+      "marketValue": 17956.73234,
+      "noOfAccts": {
+        "$numberLong": "1"
+      },
+      "filteredAdvisorCount": {
+        "$numberLong": "1"
+      },
+      "noOfViewableAccts": {
+        "$numberLong": "1"
+      },
+      "viewableMarketValue": 17956.73234,
+      "entityName": " ",
+      "entityRecType": 0,
+      "entityIndicator": " ",
+      "entityTypeCode": " ",
+      "status": "Active"
+    },
+    {
+      "advisorId": "1000000002345",
+      "advisorTaxId": "00000000",
+      "advisorName": "KEVIN XYZ",
+      "state": "PA",
+      "finInstId": {
+        "$numberLong": "123" //IBDID
+      },
+      "lastName": "XYZ",
+      "firstName": "KEVIN",
+      "middleName": "",
+      "advAddrLine1": "7946 WH BURGES DR",
+      "city": "EULESS",
+      "zipCode": "71260     ",
+      "country": "USA",
+      "businessPhone": "765-324-0864",
+      "pxClientId": {
+        "$numberLong": "123" //IBDID
+      },
+      "pxClientNameadv": "XYZ Investment Research, Inc.",
+      "isPrimary": false,
+      "email": "admin@abcd.com",
+      "bookRoles": [
+        "Home Office"
+      ],
+      "bookType": "WRI",
+      "marketValue": 17956.73234,
+      "noOfAccts": {
+        "$numberLong": "1"
+      },
+      "filteredAdvisorCount": {
+        "$numberLong": "1"
+      },
+      "noOfViewableAccts": {
+        "$numberLong": "1"
+      },
+      "viewableMarketValue": 17956.73234,
+      "entityName": " ",
+      "entityRecType": 0,
+      "entityIndicator": "I",
+      "entityTypeCode": " ",
+      "status": "Active"
+    }
+  ],
+  "ssnTin": "00000",
+  "finInstId": {
+    "$numberLong": "123" //IBDID
+  },
+  "investorFiEmail": "abc@bny.com",
+  "investorType": "Client",
+  "investorLastName": "OOSJT",
+  "investorFirstName": "QLRNAA",
+  "investorMiddleName": "",
+  "investorFullName": "QLRNAA OOSJT",
+  "investorpartyRoleId": {
+    "$numberLong": "47786419"
+  },
+  "investorFiStatus": {
+    "$numberLong": "1"
+  },
+  "investorSecurityCode": {
+    "$numberLong": "1"
+  },
+  "invAddrLine1": "8616 Zikatgrhhd Xrp",
+  "investorFinAddrLine1": "HC 1 BOX 4309",
+  "investorCity": "Fscosyarnnph",
+  "investorState": "PH",
+  "investorZipCode": "69041",
+  "investorBirthdate": {
+    "$date": "1975-05-11T04:00:00.000Z"
+  },
+  "updateFlag": "N",
+  "updateTmst": {
+    "$date": "2024-11-06T05:00:00.000Z"
+  },
+  "setupTmst": {
+    "$date": "2018-05-05T04:00:00.000Z"
+  },
+  "pxClientName": "XYZ Investment Research, Inc.",
+  "pxClientBusinessPhone": "586-585-1974",
+  "pxClientHomePhone": "586-585-1974",
+  "pxClientEmail": "abc@bny.com",
+  "pxClientAddress": "HC 1 BOX 4309",
+  "pxClientCity": "BELMAR",
+  "pxClientState": "ME",
+  "pxClientCountry": "USA",
+  "clientAccess": "Invite",
+  "trustFlag": "N",
+  "riskProfile": {},
+  "viewableFlag": "Y",
+  "userAddressLine1": "8616 Zikatgrhhd Xrp",
+  "synonyms": [
+    {
+      "partySynonymTypeCd": "TID",
+      "partySynonymStr": "800000"
+    },
+    {
+      "partySynonymTypeCd": "XID",
+      "partySynonymStr": "123456-000D-0000-0000-000000000000"
+    },
+    {
+      "partySynonymTypeCd": "WID",
+      "partySynonymStr": "1000000000000"
+    },
+    {
+      "partySynonymTypeCd": "SID",
+      "partySynonymStr": "123456789"
+    }
+  ],
+  "ETLUpdateTS": "02/18/2026 05:33 AM EST"
+}

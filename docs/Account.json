@@ -1,0 +1,155 @@
+{
+  "_id": "1000001558515", //uniqueId of an account
+  "accountid": "A0123", 
+  "ssnTin": "1234567",
+  "finInstId": {
+    "$numberDecimal": "1234567" //IBDID
+  },
+  "clientName": "ABCD G CHIZ",
+  "clientId": "123455",
+  "finInstName": "XYZ Investment Research, Inc.",
+  "accountType": "IRA",
+  "acctName": "NATL LIBRARY",
+  "UpdateFlag": "0",
+  "intType": {
+    "$numberDecimal": "10"
+  },
+  "vaCode": "--",
+  "securityCode": {
+    "$numberDecimal": "1"
+  },
+  "viewable": true,
+  "viewableSource": "Y",
+  "setupTmst": {
+    "$date": "2014-12-24T00:25:44.000Z"
+  },
+  "updateTmst": {
+    "$date": "2019-10-12T11:28:15.000Z"
+  },
+  "srcType": "C",
+  "methodFlag": false,
+  "orgAcctType": "D09",
+  "segmentType": "C",
+  "estDate": {
+    "$date": "2014-12-22T05:00:00.000Z"
+  },
+  "externMgtId": "4560",
+  "source": {
+    "$numberDecimal": "0"
+  },
+  "linkedIndicator": false,
+  "entitlements": {
+    "pxPartyRoleIdList": [ //userIds
+      {
+        "$numberLong": "35030941"
+      },
+      {
+        "$numberLong": "35030891"
+      }     
+    ],
+    "advisoryContext": [ //book Ids
+      "123454"
+    ],
+    "pxClient": {
+      "pxClientId": "123",
+      "pxClientName": "XYZ Investment Research, Inc.",
+      "Id": "123",
+      "dataOwnerPartyRoleId": {
+        "$numberLong": "123" //IBDID
+      }
+    },
+    "pxInvestorEntitlements": [ //investor user info
+      {
+        "partyRoleId": {
+          "$numberLong": "123"
+        },
+        "accountRole": "View Only",
+        "accountSource": "ABC",
+        "accountAccessStatus": "Approved",
+        "investorId": "1234",
+        "accountRoleCode": "XYZ"
+      },
+      {
+        "partyRoleId": {
+          "$numberLong": "2345"
+        },
+        "accountRole": "View Only",
+        "accountSource": "BCD",
+        "accountAccessStatus": "Approved",
+        "investorId": "123456",
+        "accountRoleCode": "ABCD",
+        "customerRoleCdDescription": "Account Owner"
+      }
+    ]
+  },
+  "etlSource": "'xyz'",
+  "repCodes": [
+    {
+      "repcode": "985770577",
+      "segmentType": "C",
+      "vaCode": "--",
+      "viewable": "Y",
+      "tp": "P",
+      "intType": {
+        "$numberDecimal": "10"
+      },
+      "repcodeSource": "'xyz'"
+    }
+  ],
+  "advisors": [ //book details
+    {
+      "advisorName": "ABCD",
+      "lastName": "XYZ",
+      "firstName": "PAUL",
+      "middleName": "K",
+      "advisorTaxId": "1234",
+      "advisorId": "3465778",
+      "finInstId": {
+        "$numberDecimal": "123" //IBDID
+      },
+      "advAddrLine1": "1781 CURRY BRANCH DR",
+      "city": "COOPERS PLAINS",
+      "zipCode": "98031     ",
+      "state": "MN",
+      "country": "USA",
+      "businessPhone": "419-217-3140",
+      "fax": "619-420-4437",
+      "entityName": " ",
+      "entityRecType": {
+        "$numberDecimal": "0"
+      },
+      "entityTypeCode": " ",
+      "entityIndicator": " ",
+      "ipByRegionAltId": "",
+      "status": "Active"
+    }
+  ],
+  "advisorHierarchy": [
+    {
+      "partyNodepathNm": "Firm",
+      "partyNodePathValue": "12"
+    },
+    {
+      "partyNodepathNm": "Region",
+      "partyNodePathValue": "1-Region"
+    },
+    {
+      "partyNodepathNm": "IPPersonTeam",
+      "partyNodePathValue": "1233"
+    }
+  ],
+  "acctTitle": "BOBS BICYCLES",
+  "custodianName": "abxd",
+  "finAcctType": "qwe",
+  "finAcctName": "NATL LIBRARY",
+  "advisoryIndicator": false,
+  "taxstatus": "2",
+  "qualifiedStatus": "Qualified",
+  "taxStatusDesc": "Tax Deferred",
+  "aumAsOfDate": "02/18/2026",
+  "accountid_finAcctName": "A062619|NATL LIBRARY",
+  "category": "ins",
+  "ins_prod_type": "VAR",
+  "ins_description": "Variable Annuity Products",
+  "ETLUpdateTS": "02/20/2026 04:51 AM EST"
+}

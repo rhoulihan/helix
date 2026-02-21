@@ -1,0 +1,133 @@
+{
+  "_id": "1000000000000", //uniqueID of an account
+  "advisorName": "ABCD",
+  "pxId": "F52",
+  "partyNodeLabelId": "300000",
+  "advisorTaxId": "1234455",
+  "userType": "bcd",
+  "finInstId": {
+    "$numberDecimal": "123" //IBDID
+  },
+  "advState": " ",
+  "advisorFullName": "ABCD",
+  "advSetupTmst": {
+    "$date": "2013-11-26T09:17:22.000Z"
+  },
+  "advUpdateTmst": {
+    "$date": "2017-08-22T05:31:07.000Z"
+  },
+  "advAcctMethod": "avd",
+  "advMethodFlag": "N",
+  "riaIarQuestion": "N",
+  "dbaQuestion": "N",
+  "disableClientList": "N",
+  "disableAdvisorReports": "N",
+  "discDbaAffBd": "Y",
+  "discRiaiarAffBd": "Y",
+  "discRiaiarAffDba": "Y",
+  "noOfSegments": "13",
+  "setAggrByAsset": "N",
+  "globalRep": "N",
+  "riaFiQuestion": "N",
+  "finInstName": "XYZ Investment Research, Inc.",
+  "finLastName": "LAKHAN",
+  "finFirstName": "ASHLY",
+  "finAddrLine1": "HC 1 BOX 4309",
+  "finBusinessPhone": "123",
+  "finHomePhone": "586-585-1974",
+  "fiEmail": "customerserviceal@abc.com",
+  "finSetupTmst": {
+    "$date": "2001-09-28T04:21:24.000Z"
+  },
+  "finUpdateTmst": {
+    "$date": "2026-02-19T17:04:07.000Z"
+  },
+  "advTransproPrice": {
+    "$numberDecimal": "1600.00"
+  },
+  "finAcctMethod": "AVG",
+  "finBenchmarkId1": "idx000060",
+  "finBenchmarkId2": "NONE00000",
+  "fiStatus": {
+    "$numberDecimal": "1"
+  },
+  "pwdSwitch": "Y",
+  "defaultAclId": {
+    "$numberDecimal": "1"
+  },
+  "advisorAccess": "VIEWABLE",
+  "accountViewableMarketValue": 1309214.04105,
+  "viewableInvestorCount": {
+    "$numberLong": "5"
+  },
+  "accountViewableCount": {
+    "$numberLong": "5"
+  },
+  "repCodes": [
+    {
+      "advisorRepNumber": "qwe",
+      "intType": {
+        "$numberDecimal": "2"
+      },
+      "repcodeSource": "xyz"
+    }
+  ],
+  "holdings": [
+    {
+      "fundId": "1234",
+      "fundName": "CAPITAL ABC",
+      "fundTicker": "qwer",
+      "mgtName": "erty",
+      "dividendRate": {
+        "$numberDecimal": "0.8800"
+      }
+    }
+    }
+  ],
+  "advisorHierarchy": [
+    {
+      "partyNodePathNm": "IPPersonTeam",
+      "partyNodePathValue": "812420839"
+    },
+    {
+      "partyNodePathNm": "Region",
+      "partyNodePathValue": "1-Region"
+    },
+    {
+      "partyNodePathNm": "Firm",
+      "partyNodePathValue": "1"
+    }
+  ],
+  "entitlements": {
+    "pxPartyRoleIdList": [ //userIds
+      {
+        "$numberLong": "12344"
+      },
+      {
+        "$numberLong": "3456"
+      }
+    ],
+    "advisoryContext": [ //book Ids
+      "12344"
+    ],
+    "pxClient": {
+      "pxClientId": "wwff",
+      "pxClientName": "ZYC Investment Research, Inc.",
+      "Id": "123" //IBDID,
+      "dataOwnerPartyRoleId": {
+        "$numberLong": "123" //IBDID
+      }
+    }
+  },
+  "state": "ME",
+  "city": "Test",
+  "zip": "7870",
+  "country": "USA",
+  "status": "VIEWABLE",
+  "viewableSource": "N",
+  "primaryAdvisorPxId": "12424t5",
+  "primaryAdvisorPartyRoleId": {
+    "$numberLong": "1232323"
+  },
+  "ETLUpdateTS": "02/20/2026 05:00 AM EST"
+}

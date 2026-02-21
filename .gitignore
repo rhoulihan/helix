@@ -1,0 +1,29 @@
+# Maven
+harness/target/
+*.class
+*.jar
+*.war
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.project
+.classpath
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker volumes
+docker/mongo-data/
+docker/oracle-data/
+
+# Benchmark output
+harness/benchmark-report*.html
+
+# Claude
+.claude/

@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Helix MongoDB ERD</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: #0f1117;
+    color: #c9d1d9;
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  #toolbar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    background: #161b22; border-bottom: 1px solid #30363d;
+    padding: 10px 20px; display: flex; align-items: center; gap: 16px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+  }
+
+  #toolbar h1 {
+    font-size: 16px; font-weight: 600; color: #e6edf3;
+    letter-spacing: 0.5px;
+  }
+
+  #toolbar .separator { width: 1px; height: 24px; background: #30363d; }
+
+  #toolbar button {
+    background: #21262d; border: 1px solid #30363d; color: #c9d1d9;
+    padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer;
+    transition: background 0.15s;
+  }
+  #toolbar button:hover { background: #30363d; }
+
+  #toolbar .legend { display: flex; gap: 12px; margin-left: auto; font-size: 11px; }
+  #toolbar .legend-item { display: flex; align-items: center; gap: 4px; }
+  #toolbar .legend-dot {
+    width: 8px; height: 8px; border-radius: 50%; display: inline-block;
+  }
+
+  #canvas {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    cursor: grab;
+  }
+  #canvas.grabbing { cursor: grabbing; }
+
+  #world { position: absolute; top: 0; left: 0; transform-origin: 0 0; }
+
+  svg#relationships {
+    position: absolute; top: 0; left: 0;
+    width: 6000px; height: 4000px;
+    pointer-events: none; z-index: 1;
+  }
+
+  svg#relationships path {
+    fill: none; stroke-width: 1.8; opacity: 0.55;
+    transition: opacity 0.2s;
+  }
+  svg#relationships path.highlight { opacity: 1; stroke-width: 2.5; }
+
+  svg#relationships text {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 10px; fill: #8b949e; pointer-events: none;
+  }
+
+  .entity {
+    position: absolute; z-index: 10;
+    border-radius: 8px; overflow: hidden;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.04);
+    min-width: 280px; max-width: 340px;
+    transition: box-shadow 0.2s;
+    user-select: none;
+  }
+  .entity:hover { box-shadow: 0 8px 32px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.08); }
+  .entity.dragging { z-index: 50; box-shadow: 0 12px 48px rgba(0,0,0,0.7); }
+
+  .entity-header {
+    padding: 10px 14px; cursor: move; display: flex;
+    align-items: center; justify-content: space-between;
+  }
+  .entity-header h2 {
+    font-size: 14px; font-weight: 700; letter-spacing: 0.3px;
+  }
+  .entity-header .badge {
+    font-size: 10px; padding: 2px 8px; border-radius: 10px;
+    font-weight: 600; opacity: 0.8;
+  }
+
+  .entity-section {
+    padding: 2px 0; border-top: 1px solid rgba(255,255,255,0.06);
+  }
+  .entity-section-label {
+    font-size: 9px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 1px; padding: 6px 14px 2px; opacity: 0.45;
+  }
+
+  .field-row {
+    display: flex; align-items: center; padding: 3px 14px;
+    font-size: 12px; gap: 6px; line-height: 1.5;
+    transition: background 0.1s;
+  }
+  .field-row:hover { background: rgba(255,255,255,0.03); }
+
+  .field-icon { font-size: 10px; width: 14px; text-align: center; flex-shrink: 0; }
+  .field-name { flex: 1; font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 11.5px; }
+  .field-type {
+    font-size: 10px; padding: 1px 6px; border-radius: 3px;
+    background: rgba(255,255,255,0.06); color: #8b949e; flex-shrink: 0;
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+  }
+  .field-key { color: #f0c674; }
+  .field-fk { color: #81a1c1; }
+  .field-embed { color: #a3be8c; }
+  .field-name.pk { color: #f0c674; font-weight: 600; }
+  .field-name.fk { color: #81a1c1; }
+
+  .entity-footer {
+    padding: 6px 14px; border-top: 1px solid rgba(255,255,255,0.06);
+    font-size: 10px; opacity: 0.4; text-align: right;
+  }
+
+  /* Entity color themes */
+  .entity.account { background: #131820; }
+  .entity.account .entity-header { background: #1a3a5c; }
+  .entity.account .badge { background: #2563eb22; color: #60a5fa; border: 1px solid #2563eb44; }
+
+  .entity.advisor { background: #181318; }
+  .entity.advisor .entity-header { background: #4a1a5c; }
+  .entity.advisor .badge { background: #9333ea22; color: #c084fc; border: 1px solid #9333ea44; }
+
+  .entity.bookrolegroup { background: #131a18; }
+  .entity.bookrolegroup .entity-header { background: #1a5c3a; }
+  .entity.bookrolegroup .badge { background: #16a34a22; color: #4ade80; border: 1px solid #16a34a44; }
+
+  .entity.bookroleinvestor { background: #1a1813; }
+  .entity.bookroleinvestor .entity-header { background: #5c4a1a; }
+  .entity.bookroleinvestor .badge { background: #ca8a0422; color: #facc15; border: 1px solid #ca8a0444; }
+
+  .connector-dot {
+    position: absolute; width: 8px; height: 8px; border-radius: 50%;
+    z-index: 5; pointer-events: none;
+  }
+
+  /* Zoom indicator */
+  #zoom-indicator {
+    position: fixed; bottom: 12px; right: 16px; z-index: 100;
+    background: #21262d; border: 1px solid #30363d; border-radius: 6px;
+    padding: 4px 10px; font-size: 11px; color: #8b949e;
+  }
+
+  /* Info panel */
+  #info-panel {
+    position: fixed; bottom: 12px; left: 16px; z-index: 100;
+    background: #21262d; border: 1px solid #30363d; border-radius: 6px;
+    padding: 8px 14px; font-size: 11px; color: #8b949e; max-width: 400px;
+    line-height: 1.6;
+  }
+  #info-panel strong { color: #c9d1d9; }
+</style>
+</head>
+<body>
+
+<div id="toolbar">
+  <h1>HELIX MongoDB ERD</h1>
+  <div class="separator"></div>
+  <button onclick="resetView()">Reset View</button>
+  <button onclick="autoLayout()">Auto Layout</button>
+  <button onclick="toggleLabels()">Toggle Labels</button>
+  <div class="legend">
+    <div class="legend-item"><span class="legend-dot" style="background:#60a5fa"></span> Account</div>
+    <div class="legend-item"><span class="legend-dot" style="background:#c084fc"></span> Advisor</div>
+    <div class="legend-item"><span class="legend-dot" style="background:#4ade80"></span> BookRoleGroup</div>
+    <div class="legend-item"><span class="legend-dot" style="background:#facc15"></span> BookRoleInvestor</div>
+  </div>
+</div>
+
+<div id="canvas">
+  <div id="world">
+    <svg id="relationships"></svg>
+  </div>
+</div>
+
+<div id="zoom-indicator">100%</div>
+<div id="info-panel">
+  <strong>Drag</strong> tables to rearrange &middot;
+  <strong>Scroll</strong> to zoom &middot;
+  <strong>Click + drag</strong> background to pan
+</div>
+
+<script>
+// ── Data Model ──────────────────────────────────────────────────────────────
+const entities = {
+  account: {
+    name: 'Account',
+    collection: 'account',
+    className: 'account',
+    x: 80, y: 100,
+    sections: [
+      {
+        label: 'Identity',
+        fields: [
+          { name: '_id', type: 'string', icon: '🔑', cls: 'pk', note: 'PK' },
+          { name: 'accountid', type: 'string', icon: ' ', cls: '' },
+          { name: 'ssnTin', type: 'string', icon: ' ', cls: '' },
+          { name: 'acctName', type: 'string', icon: ' ', cls: '' },
+          { name: 'accountType', type: 'string', icon: ' ', cls: '' },
+          { name: 'acctTitle', type: 'string', icon: ' ', cls: '' },
+        ]
+      },
+      {
+        label: 'Client / Institution',
+        fields: [
+          { name: 'finInstId', type: 'Decimal', icon: '🔗', cls: 'fk', note: 'FK → IBDID' },
+          { name: 'finInstName', type: 'string', icon: ' ', cls: '' },
+          { name: 'clientName', type: 'string', icon: ' ', cls: '' },
+          { name: 'clientId', type: 'string', icon: ' ', cls: '' },
+        ]
+      },
+      {
+        label: 'Entitlements (embedded)',
+        fields: [
+          { name: 'entitlements.pxPartyRoleIdList[]', type: 'Long[]', icon: '🔗', cls: 'fk', note: 'userIds' },
+          { name: 'entitlements.advisoryContext[]', type: 'string[]', icon: '🔗', cls: 'fk', note: 'bookIds' },
+          { name: 'entitlements.pxClient', type: 'Object', icon: '📦', cls: 'embed' },
+          { name: 'entitlements.pxInvestorEntitlements[]', type: 'Object[]', icon: '📦', cls: 'embed', note: '→ Investor' },
+        ]
+      },
+      {
+        label: 'Embedded Arrays',
+        fields: [
+          { name: 'advisors[]', type: 'Object[]', icon: '📦', cls: 'embed', note: '→ Advisor' },
+          { name: 'advisorHierarchy[]', type: 'Object[]', icon: '📦', cls: 'embed' },
+          { name: 'repCodes[]', type: 'Object[]', icon: '📦', cls: 'embed' },
+        ]
+      },
+      {
+        label: 'Metadata',
+        fields: [
+          { name: 'viewableSource', type: 'string', icon: ' ', cls: '' },
+          { name: 'setupTmst', type: 'Date', icon: ' ', cls: '' },
+          { name: 'updateTmst', type: 'Date', icon: ' ', cls: '' },
+          { name: 'holdings', type: 'Object', icon: ' ', cls: '' },
+          { name: 'qualifiedStatus', type: 'string', icon: ' ', cls: '' },
+          { name: 'ETLUpdateTS', type: 'string', icon: ' ', cls: '' },
+        ]
+      }
+    ]
+  },
+
+  advisor: {
+    name: 'Advisor',
+    collection: 'advisor',
+    className: 'advisor',
+    x: 480, y: 80,
+    sections: [
+      {
+        label: 'Identity',
+        fields: [
+          { name: '_id', type: 'string', icon: '🔑', cls: 'pk', note: 'PK' },
+          { name: 'advisorName', type: 'string', icon: ' ', cls: '' },
+          { name: 'advisorFullName', type: 'string', icon: ' ', cls: '' },
+          { name: 'advisorTaxId', type: 'string', icon: ' ', cls: '' },
+          { name: 'pxId', type: 'string', icon: ' ', cls: '' },
+          { name: 'userType', type: 'string', icon: ' ', cls: '' },
+        ]
+      },
+      {
+        label: 'Institution',
+        fields: [
+          { name: 'finInstId', type: 'Decimal', icon: '🔗', cls: 'fk', note: 'FK → IBDID' },
+          { name: 'finInstName', type: 'string', icon: ' ', cls: '' },
+          { name: 'partyNodeLabelId', type: 'string', icon: ' ', cls: '' },
+        ]
+      },
+      {
+        label: 'Entitlements (embedded)',
+        fields: [
+          { name: 'entitlements.pxPartyRoleIdList[]', type: 'Long[]', icon: '🔗', cls: 'fk', note: 'userIds' },
+          { name: 'entitlements.advisoryContext[]', type: 'string[]', icon: '🔗', cls: 'fk', note: 'bookIds' },
+          { name: 'entitlements.pxClient', type: 'Object', icon: '📦', cls: 'embed' },
+        ]
+      },
+      {
+        label: 'Embedded Arrays',
+        fields: [
+          { name: 'holdings[]', type: 'Object[]', icon: '📦', cls: 'embed', note: 'fundId, ticker' },
+          { name: 'advisorHierarchy[]', type: 'Object[]', icon: '📦', cls: 'embed' },
+          { name: 'repCodes[]', type: 'Object[]', icon: '📦', cls: 'embed' },
+        ]
+      },
+      {
+        label: 'Financials / Access',
+        fields: [
+          { name: 'accountViewableMarketValue', type: 'number', icon: ' ', cls: '' },
+          { name: 'accountViewableCount', type: 'Long', icon: ' ', cls: '' },
+          { name: 'viewableInvestorCount', type: 'Long', icon: ' ', cls: '' },
+          { name: 'advisorAccess', type: 'string', icon: ' ', cls: '' },
+          { name: 'status', type: 'string', icon: ' ', cls: '' },
+        ]
+      },
+      {
+        label: 'Metadata',
+        fields: [
+          { name: 'advSetupTmst', type: 'Date', icon: ' ', cls: '' },
+          { name: 'advUpdateTmst', type: 'Date', icon: ' ', cls: '' },
+          { name: 'ETLUpdateTS', type: 'string', icon: ' ', cls: '' },
+        ]
+      }
+    ]
+  },
+
+  bookRoleGroup: {
+    name: 'BookRoleGroup',
+    collection: 'bookRoleGroup',
+    className: 'bookrolegroup',
+    x: 80, y: 620,
+    sections: [
+      {
+        label: 'Identity',
+        fields: [
+          { name: '_id', type: 'string', icon: '🔑', cls: 'pk', note: 'PK: IBDID_uniqueID' },
+          { name: 'entity', type: 'string', icon: ' ', cls: '' },
+          { name: 'accountGroupId', type: 'string', icon: ' ', cls: '' },
+          { name: 'accountGroupName', type: 'string', icon: ' ', cls: '' },
+          { name: 'accountGroupType', type: 'string', icon: ' ', cls: '' },
+          { name: 'accountGroupSSN', type: 'string', icon: ' ', cls: '' },
+          { name: 'portfolioType', type: 'string', icon: ' ', cls: '' },
+        ]
+      },
+      {
+        label: 'Institution / Owner',
+        fields: [
+          { name: 'finInstId', type: 'Long', icon: '🔗', cls: 'fk', note: 'FK → IBDID' },
+          { name: 'dataOwnerPartyRoleId', type: 'Long', icon: '🔗', cls: 'fk', note: 'IBDID' },
+          { name: 'personaNm[]', type: 'string[]', icon: ' ', cls: '', note: 'user roles' },
+          { name: 'etlSourceGroup', type: 'string', icon: ' ', cls: '' },
+        ]
+      },
+      {
+        label: 'Entitlements (embedded)',
+        fields: [
+          { name: 'entitlements.pxPartyRoleIdList[]', type: 'Long[]', icon: '🔗', cls: 'fk', note: 'userIds' },
+          { name: 'entitlements.advisoryContext[]', type: 'string[]', icon: '🔗', cls: 'fk', note: 'bookIds' },
+          { name: 'entitlements.pxClient', type: 'Object', icon: '📦', cls: 'embed' },
+        ]
+      },
+      {
+        label: 'Embedded Arrays',
+        fields: [
+          { name: 'advisors[]', type: 'Object[]', icon: '📦', cls: 'embed', note: '→ Advisor' },
+          { name: 'advisors[].investors[]', type: 'Object[]', icon: '📦', cls: 'embed', note: '→ Investor' },
+          { name: 'advisorHierarchy[]', type: 'Object[]', icon: '📦', cls: 'embed' },
+        ]
+      },
+      {
+        label: 'Financials',
+        fields: [
+          { name: 'accountCount', type: 'Long', icon: ' ', cls: '' },
+          { name: 'totalMarketValue', type: 'number', icon: ' ', cls: '' },
+          { name: 'totalViewableAccountCount', type: 'Long', icon: ' ', cls: '' },
+          { name: 'totalViewableAccountsMarketValue', type: 'number', icon: ' ', cls: '' },
+          { name: 'visibleFlag', type: 'string', icon: ' ', cls: '' },
+          { name: 'ETLUpdateTS', type: 'string', icon: ' ', cls: '' },
+        ]
+      }
+    ]
+  },
+
+  bookRoleInvestor: {
+    name: 'BookRoleInvestor',
+    collection: 'bookRoleInvestor',
+    className: 'bookroleinvestor',
+    x: 480, y: 620,
+    sections: [
+      {
+        label: 'Identity',
+        fields: [
+          { name: '_id', type: 'string', icon: '🔑', cls: 'pk', note: 'PK: IBDID_uniqueID' },
+          { name: 'investorId', type: 'string', icon: ' ', cls: '', note: 'clientId' },
+          { name: 'investorType', type: 'string', icon: ' ', cls: '' },
+          { name: 'entity', type: 'string', icon: ' ', cls: '' },
+          { name: 'investorFullName', type: 'string', icon: ' ', cls: '' },
+          { name: 'investorFirstName', type: 'string', icon: ' ', cls: '' },
+          { name: 'investorMiddleName', type: 'string', icon: ' ', cls: '' },
+          { name: 'investorLastName', type: 'string', icon: ' ', cls: '' },
+          { name: 'ssnTin', type: 'string', icon: ' ', cls: '' },
+        ]
+      },
+      {
+        label: 'IDs / References',
+        fields: [
+          { name: 'partyRoleId', type: 'Long', icon: ' ', cls: '' },
+          { name: 'partyId', type: 'Long', icon: ' ', cls: '', note: "user's Id" },
+          { name: 'investorpartyRoleId', type: 'Long', icon: ' ', cls: '' },
+          { name: 'dataOwnerPartyRoleId', type: 'Long', icon: '🔗', cls: 'fk', note: 'IBDID' },
+          { name: 'finInstId', type: 'Long', icon: '🔗', cls: 'fk', note: 'FK → IBDID' },
+          { name: 'partyRoleTypeCd', type: 'string', icon: ' ', cls: '' },
+          { name: 'personaCd', type: 'string', icon: ' ', cls: '' },
+        ]
+      },
+      {
+        label: 'Contact / Address',
+        fields: [
+          { name: 'investorFiEmail', type: 'string', icon: ' ', cls: '' },
+          { name: 'userAddressLine1', type: 'string', icon: ' ', cls: '' },
+          { name: 'invAddrLine1', type: 'string', icon: ' ', cls: '' },
+          { name: 'investorFinAddrLine1', type: 'string', icon: ' ', cls: '' },
+          { name: 'investorCity', type: 'string', icon: ' ', cls: '' },
+          { name: 'investorState', type: 'string', icon: ' ', cls: '' },
+          { name: 'investorZipCode', type: 'string', icon: ' ', cls: '' },
+          { name: 'investorBirthdate', type: 'Date', icon: ' ', cls: '' },
+        ]
+      },
+      {
+        label: 'PxClient Info',
+        fields: [
+          { name: 'pxClientName', type: 'string', icon: ' ', cls: '' },
+          { name: 'pxClientEmail', type: 'string', icon: ' ', cls: '' },
+          { name: 'pxClientBusinessPhone', type: 'string', icon: ' ', cls: '' },
+          { name: 'pxClientHomePhone', type: 'string', icon: ' ', cls: '' },
+          { name: 'pxClientAddress', type: 'string', icon: ' ', cls: '' },
+          { name: 'pxClientCity', type: 'string', icon: ' ', cls: '' },
+          { name: 'pxClientState', type: 'string', icon: ' ', cls: '' },
+          { name: 'pxClientCountry', type: 'string', icon: ' ', cls: '' },
+        ]
+      },
+      {
+        label: 'Entitlements (embedded)',
+        fields: [
+          { name: 'entitlements.advisoryContext[]', type: 'string[]', icon: '🔗', cls: 'fk', note: 'bookIds' },
+          { name: 'entitlements.pxClients', type: 'Object', icon: '📦', cls: 'embed', note: 'IBDID' },
+          { name: 'entitlements.pxPartyRoleIdList', type: 'Long[]', icon: '🔗', cls: 'fk', note: 'userIds' },
+        ]
+      },
+      {
+        label: 'Embedded Arrays',
+        fields: [
+          { name: 'advisors[]', type: 'Object[]', icon: '📦', cls: 'embed', note: '→ Advisor' },
+          { name: 'advisorHierarchy[]', type: 'Object[]', icon: '📦', cls: 'embed' },
+          { name: 'personaNm[]', type: 'string[]', icon: ' ', cls: '', note: 'user roles' },
+          { name: 'synonyms[]', type: 'Object[]', icon: '📦', cls: 'embed', note: 'TID/XID/WID/SID' },
+        ]
+      },
+      {
+        label: 'Financials',
+        fields: [
+          { name: 'totalMarketValue', type: 'number', icon: ' ', cls: '' },
+          { name: 'totalAccounts', type: 'Long', icon: ' ', cls: '' },
+          { name: 'totalViewableAccountsMarketValue', type: 'number', icon: ' ', cls: '' },
+          { name: 'totalViewableAccountCount', type: 'Long', icon: ' ', cls: '' },
+        ]
+      },
+      {
+        label: 'Flags / Status',
+        fields: [
+          { name: 'viewableFlag', type: 'string', icon: ' ', cls: '' },
+          { name: 'clientAccess', type: 'string', icon: ' ', cls: '' },
+          { name: 'trustFlag', type: 'string', icon: ' ', cls: '' },
+          { name: 'updateFlag', type: 'string', icon: ' ', cls: '' },
+          { name: 'conversionInProgress', type: 'boolean', icon: ' ', cls: '' },
+          { name: 'riskProfile', type: 'Object', icon: ' ', cls: '' },
+        ]
+      },
+      {
+        label: 'Metadata',
+        fields: [
+          { name: 'setupTmst', type: 'Date', icon: ' ', cls: '' },
+          { name: 'updateTmst', type: 'Date', icon: ' ', cls: '' },
+          { name: 'ETLUpdateTS', type: 'string', icon: ' ', cls: '' },
+        ]
+      }
+    ]
+  }
+};
+
+// ── Relationships ───────────────────────────────────────────────────────────
+const relationships = [
+  {
+    from: 'account', to: 'advisor',
+    label: 'advisors[] embeds Advisor',
+    card: '1:N',
+    color: '#60a5fa',
+    fromSide: 'right', toSide: 'left',
+  },
+  {
+    from: 'account', to: 'bookRoleInvestor',
+    label: 'pxInvestorEntitlements[] → Investor',
+    card: 'M:N',
+    color: '#facc15',
+    fromSide: 'right', toSide: 'left',
+  },
+  {
+    from: 'bookRoleGroup', to: 'advisor',
+    label: 'advisors[] embeds Advisor',
+    card: '1:N',
+    color: '#4ade80',
+    fromSide: 'right', toSide: 'left',
+  },
+  {
+    from: 'bookRoleGroup', to: 'bookRoleInvestor',
+    label: 'advisors[].investors[] → Investor',
+    card: 'M:N',
+    color: '#f97316',
+    fromSide: 'right', toSide: 'left',
+  },
+  {
+    from: 'bookRoleInvestor', to: 'advisor',
+    label: 'advisors[] embeds Advisor',
+    card: '1:N',
+    color: '#c084fc',
+    fromSide: 'top', toSide: 'bottom',
+  },
+  {
+    from: 'account', to: 'bookRoleGroup',
+    label: 'advisoryContext[] (shared bookIds)',
+    card: 'M:N',
+    color: '#38bdf8',
+    fromSide: 'bottom', toSide: 'top',
+  },
+];
+
+// ── Render Entities ─────────────────────────────────────────────────────────
+const world = document.getElementById('world');
+const entityEls = {};
+
+for (const [key, ent] of Object.entries(entities)) {
+  const el = document.createElement('div');
+  el.className = `entity ${ent.className}`;
+  el.id = `entity-${key}`;
+  el.style.left = ent.x + 'px';
+  el.style.top = (ent.y + 50) + 'px'; // offset for toolbar
+
+  let html = `
+    <div class="entity-header" data-drag-handle>
+      <h2>${ent.name}</h2>
+      <span class="badge">${ent.collection}</span>
+    </div>`;
+
+  for (const section of ent.sections) {
+    html += `<div class="entity-section">
+      <div class="entity-section-label">${section.label}</div>`;
+    for (const f of section.fields) {
+      const noteHtml = f.note ? `<span class="field-type" style="color:#8b949e">${f.note}</span>` : '';
+      html += `<div class="field-row">
+        <span class="field-icon">${f.icon}</span>
+        <span class="field-name ${f.cls}">${f.name}</span>
+        <span class="field-type">${f.type}</span>
+        ${noteHtml}
+      </div>`;
+    }
+    html += `</div>`;
+  }
+
+  html += `<div class="entity-footer">MongoDB Document Collection</div>`;
+  el.innerHTML = html;
+  world.appendChild(el);
+  entityEls[key] = el;
+}
+
+// ── SVG Relationships ───────────────────────────────────────────────────────
+const svg = document.getElementById('relationships');
+let showLabels = true;
+
+function getEntityRect(key) {
+  const el = entityEls[key];
+  const x = parseFloat(el.style.left);
+  const y = parseFloat(el.style.top);
+  const w = el.offsetWidth;
+  const h = el.offsetHeight;
+  return { x, y, w, h };
+}
+
+function getAnchor(rect, side) {
+  switch (side) {
+    case 'left':   return { x: rect.x, y: rect.y + rect.h / 2 };
+    case 'right':  return { x: rect.x + rect.w, y: rect.y + rect.h / 2 };
+    case 'top':    return { x: rect.x + rect.w / 2, y: rect.y };
+    case 'bottom': return { x: rect.x + rect.w / 2, y: rect.y + rect.h };
+  }
+}
+
+function cardinalityMarker(card, end) {
+  // Returns a small text for the cardinality at each end
+  const parts = card.split(':');
+  return end === 'from' ? parts[0] : parts[1];
+}
+
+function drawRelationships() {
+  svg.innerHTML = '';
+
+  // Dynamically compute sides based on relative position
+  for (const rel of relationships) {
+    const fromRect = getEntityRect(rel.from);
+    const toRect = getEntityRect(rel.to);
+
+    // Decide sides dynamically
+    const fromCx = fromRect.x + fromRect.w / 2;
+    const fromCy = fromRect.y + fromRect.h / 2;
+    const toCx = toRect.x + toRect.w / 2;
+    const toCy = toRect.y + toRect.h / 2;
+
+    const dx = toCx - fromCx;
+    const dy = toCy - fromCy;
+
+    let fromSide, toSide;
+    if (Math.abs(dx) > Math.abs(dy)) {
+      fromSide = dx > 0 ? 'right' : 'left';
+      toSide = dx > 0 ? 'left' : 'right';
+    } else {
+      fromSide = dy > 0 ? 'bottom' : 'top';
+      toSide = dy > 0 ? 'top' : 'bottom';
+    }
+
+    const p1 = getAnchor(fromRect, fromSide);
+    const p2 = getAnchor(toRect, toSide);
+
+    // Bezier control points
+    const tension = Math.min(120, Math.max(40, Math.abs(p2.x - p1.x) * 0.4));
+    let cp1, cp2;
+    if (fromSide === 'right') { cp1 = { x: p1.x + tension, y: p1.y }; }
+    else if (fromSide === 'left') { cp1 = { x: p1.x - tension, y: p1.y }; }
+    else if (fromSide === 'bottom') { cp1 = { x: p1.x, y: p1.y + tension }; }
+    else { cp1 = { x: p1.x, y: p1.y - tension }; }
+
+    if (toSide === 'left') { cp2 = { x: p2.x - tension, y: p2.y }; }
+    else if (toSide === 'right') { cp2 = { x: p2.x + tension, y: p2.y }; }
+    else if (toSide === 'top') { cp2 = { x: p2.x, y: p2.y - tension }; }
+    else { cp2 = { x: p2.x, y: p2.y + tension }; }
+
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', `M${p1.x},${p1.y} C${cp1.x},${cp1.y} ${cp2.x},${cp2.y} ${p2.x},${p2.y}`);
+    path.setAttribute('stroke', rel.color);
+    path.dataset.from = rel.from;
+    path.dataset.to = rel.to;
+    svg.appendChild(path);
+
+    // Cardinality labels at endpoints
+    const fromCard = cardinalityMarker(rel.card, 'from');
+    const toCard = cardinalityMarker(rel.card, 'to');
+
+    const addText = (x, y, text, anchor) => {
+      const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      t.setAttribute('x', x);
+      t.setAttribute('y', y - 8);
+      t.setAttribute('text-anchor', anchor);
+      t.setAttribute('fill', rel.color);
+      t.setAttribute('font-weight', '700');
+      t.setAttribute('font-size', '11');
+      t.textContent = text;
+      svg.appendChild(t);
+    };
+    addText(p1.x + (fromSide === 'right' ? 8 : fromSide === 'left' ? -8 : 0),
+            p1.y + (fromSide === 'bottom' ? 14 : fromSide === 'top' ? -4 : 0),
+            fromCard, fromSide === 'left' ? 'end' : 'start');
+    addText(p2.x + (toSide === 'right' ? 8 : toSide === 'left' ? -8 : 0),
+            p2.y + (toSide === 'bottom' ? 14 : toSide === 'top' ? -4 : 0),
+            toCard, toSide === 'right' ? 'start' : 'end');
+
+    // Midpoint label
+    if (showLabels) {
+      const mx = (p1.x + p2.x) / 2;
+      const my = (p1.y + p2.y) / 2 - 6;
+      const labelEl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      labelEl.setAttribute('x', mx);
+      labelEl.setAttribute('y', my);
+      labelEl.setAttribute('text-anchor', 'middle');
+      labelEl.setAttribute('fill', rel.color);
+      labelEl.setAttribute('opacity', '0.7');
+      labelEl.textContent = rel.label;
+      svg.appendChild(labelEl);
+    }
+
+    // Dots at endpoints
+    const dot1 = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    dot1.setAttribute('cx', p1.x); dot1.setAttribute('cy', p1.y);
+    dot1.setAttribute('r', 4); dot1.setAttribute('fill', rel.color);
+    svg.appendChild(dot1);
+
+    const dot2 = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    dot2.setAttribute('cx', p2.x); dot2.setAttribute('cy', p2.y);
+    dot2.setAttribute('r', 4); dot2.setAttribute('fill', rel.color);
+    svg.appendChild(dot2);
+  }
+}
+
+drawRelationships();
+
+// ── Dragging ────────────────────────────────────────────────────────────────
+let dragTarget = null;
+let dragOffset = { x: 0, y: 0 };
+
+document.addEventListener('mousedown', (e) => {
+  const handle = e.target.closest('[data-drag-handle]');
+  if (!handle) return;
+  const entity = handle.closest('.entity');
+  if (!entity) return;
+
+  e.preventDefault();
+  dragTarget = entity;
+  dragTarget.classList.add('dragging');
+  const rect = entity.getBoundingClientRect();
+  const worldRect = world.getBoundingClientRect();
+  dragOffset.x = (e.clientX - rect.left) / zoom;
+  dragOffset.y = (e.clientY - rect.top) / zoom;
+});
+
+document.addEventListener('mousemove', (e) => {
+  if (!dragTarget) return;
+  e.preventDefault();
+  const worldRect = world.getBoundingClientRect();
+  const x = (e.clientX - worldRect.left) / zoom - dragOffset.x;
+  const y = (e.clientY - worldRect.top) / zoom - dragOffset.y;
+  dragTarget.style.left = x + 'px';
+  dragTarget.style.top = y + 'px';
+  drawRelationships();
+});
+
+document.addEventListener('mouseup', () => {
+  if (dragTarget) {
+    dragTarget.classList.remove('dragging');
+    dragTarget = null;
+  }
+});
+
+// ── Pan & Zoom ──────────────────────────────────────────────────────────────
+let zoom = 1;
+let panX = 0, panY = 0;
+let isPanning = false;
+let panStart = { x: 0, y: 0 };
+const canvas = document.getElementById('canvas');
+
+function updateTransform() {
+  world.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+  document.getElementById('zoom-indicator').textContent = Math.round(zoom * 100) + '%';
+}
+
+canvas.addEventListener('mousedown', (e) => {
+  if (e.target.closest('.entity')) return;
+  isPanning = true;
+  panStart = { x: e.clientX - panX, y: e.clientY - panY };
+  canvas.classList.add('grabbing');
+});
+
+canvas.addEventListener('mousemove', (e) => {
+  if (!isPanning) return;
+  panX = e.clientX - panStart.x;
+  panY = e.clientY - panStart.y;
+  updateTransform();
+});
+
+canvas.addEventListener('mouseup', () => {
+  isPanning = false;
+  canvas.classList.remove('grabbing');
+});
+
+canvas.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const delta = e.deltaY > 0 ? 0.92 : 1.08;
+  const newZoom = Math.min(3, Math.max(0.2, zoom * delta));
+
+  // Zoom toward mouse position
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  panX = mx - (mx - panX) * (newZoom / zoom);
+  panY = my - (my - panY) * (newZoom / zoom);
+  zoom = newZoom;
+  updateTransform();
+}, { passive: false });
+
+// ── Toolbar Actions ─────────────────────────────────────────────────────────
+function resetView() {
+  zoom = 1; panX = 0; panY = 0;
+  updateTransform();
+}
+
+function autoLayout() {
+  const keys = Object.keys(entities);
+  const cols = 2;
+  const gapX = 420, gapY = 30;
+  keys.forEach((key, i) => {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    const el = entityEls[key];
+    el.style.left = (60 + col * gapX) + 'px';
+    el.style.top = (70 + row * (el.offsetHeight + gapY)) + 'px';
+  });
+  drawRelationships();
+}
+
+function toggleLabels() {
+  showLabels = !showLabels;
+  drawRelationships();
+}
+
+// ── Highlight on entity hover ───────────────────────────────────────────────
+for (const [key, el] of Object.entries(entityEls)) {
+  el.addEventListener('mouseenter', () => {
+    svg.querySelectorAll('path').forEach(p => {
+      if (p.dataset.from === key || p.dataset.to === key) {
+        p.classList.add('highlight');
+      }
+    });
+  });
+  el.addEventListener('mouseleave', () => {
+    svg.querySelectorAll('path').forEach(p => p.classList.remove('highlight'));
+  });
+}
+
+// ── Initial auto-layout ─────────────────────────────────────────────────────
+requestAnimationFrame(() => {
+  autoLayout();
+  // Center the view
+  panX = 20;
+  panY = 30;
+  updateTransform();
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,97 @@
+{
+  "_id": "16_1156026", // can be IBDID_uniqueID of the group or userId(in case of advisor/investor user)_uniqueId of the group
+  "investorWriId": "",
+  "etlSourceGroup": "xyz", //2 allowed values
+  "finInstId": {
+    "$numberLong": "123" //IBDID
+  },
+  "personaNm": [ //record for type of user
+    "Home Office",
+    "Wove Administrator"
+  ],
+  "entity": "Group",
+  "dataOwnerPartyRoleId": {
+    "$numberLong": "123" //IBDID
+  },
+  "advisorHierarchy": [ //book's hierarchy
+    {
+      "partyNodePathValue": "12345"
+    },
+    {
+      "partyNodePathValue": "ab-Region"
+    },
+    {
+      "partyNodePathValue": "123"
+    }
+  ],
+  "entitlements": {
+    "advisoryContext": [ //book Ids
+      "1000000001234"
+    ],
+    "pxClient": {
+      "pxClientNm": "xyz Investment Research, Inc.",
+      "ibdRpmId": "123",
+      "fiWriBaseCd": {
+        "$numberLong": "123"
+      },
+      "fiWriVirtualCd": {
+        "$numberLong": "234"
+      },
+      "dataOwnerPartyRoleId": {
+        "$numberLong": "123" //IBDID
+      }
+    },
+    "pxPartyRoleIdList": [ ... //userIds in case if this doc is for advisor/investor users
+      {
+        "$numberLong": "35030941"
+      },
+      {
+        "$numberLong": "35030891"
+      }      
+    ]
+  },
+  "accountCount": {
+    "$numberLong": "2"
+  },
+  "totalMarketValue": 4106016.96908,
+  "totalViewableAccountCount": {
+    "$numberLong": "2"
+  },
+  "totalViewableAccountsMarketValue": 4106016.96908,
+  "advisors": [ //book details
+    {
+      "advisorId": "1000000001234",
+      "advisorTaxId": "12345678",
+      "finInstId": {
+        "$numberLong": "123" //IBDID
+      },
+      "firstName": "KEVIN",
+      "middleName": "F",
+      "lastName": "XYZ",
+      "advisorName": "KEVIN F XYZ",
+      "bookRoles": [
+        "Home Office"
+      ],
+      "bookType": "123",
+      "totalViewableAccountsMarketValue": 4106016.96908,
+      "totalViewableAccountCount": 2,
+      "entityName": " ",
+      "entityTypeCode": " ",
+      "entityRecType": 0,
+      "entityIndicator": " ",
+      "investors": [
+        {
+          "investorId": "100000234567889"
+        }
+      ],
+      "status": "Active"
+    }
+  ],
+  "accountGroupName": "ABC AUTO SPRING",
+  "accountGroupId": "12345",
+  "accountGroupType": "Performance",
+  "accountGroupSSN": "3456789",
+  "accountGroupPrivateToInvestor": true,
+  "portfolioType": "A",
+  "ETLUpdateTS": "02/20/2026 06:48 AM EST"
+}

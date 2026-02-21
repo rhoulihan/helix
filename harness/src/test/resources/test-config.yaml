@@ -1,0 +1,28 @@
+benchmark:
+  warmUpIterations: 10
+  measurementIterations: 50
+  batchSize: 500
+  jdbcBatchSize: 250
+
+dataGeneration:
+  advisorCount: 100
+  accountCount: 1000
+  bookRoleGroupCount: 300
+  bookRoleInvestorCount: 1500
+  advisoryContextPoolSize: 500
+  partyRoleIdPoolSize: 1000
+  finInstIdPoolSize: 10
+  targetSizeGb: 0.01
+
+connections:
+  mongoNative:
+    uri: "mongodb://localhost:27017"
+    database: "helix"
+  oracleJdbc:
+    url: "jdbc:oracle:thin:@localhost:1521/helix"
+    username: "ADMIN"
+    password: "Welcome_1"
+    maxPoolSize: 5
+  oracleMongoApi:
+    uri: "mongodb://localhost:27018"
+    database: "helix"
