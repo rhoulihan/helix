@@ -19,10 +19,10 @@ connections:
     uri: "mongodb://localhost:27017"
     database: "helix"
   oracleJdbc:
-    url: "jdbc:oracle:thin:@localhost:1521/helix"
+    url: "jdbc:oracle:thin:@(description=(retry_count=0)(retry_delay=3)(address=(protocol=tcps)(port=1521)(host=localhost))(connect_data=(service_name=myatp_low.adb.oraclecloud.com))(security=(ssl_server_dn_match=no)))"
     username: "ADMIN"
-    password: "Welcome_1"
+    password: "Welcome_12345!"
     maxPoolSize: 10
   oracleMongoApi:
-    uri: "mongodb://localhost:27018"
-    database: "helix"
+    uri: "mongodb://ADMIN:Welcome_12345!@localhost:27018/admin?authMechanism=PLAIN&authSource=$external&tls=true&tlsAllowInvalidCertificates=true&loadBalanced=true&retryWrites=false"
+    database: "ADMIN"

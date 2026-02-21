@@ -874,7 +874,7 @@ connections:
   oracleJdbc:
     url: "jdbc:oracle:thin:@localhost:1521/helix"
     username: "ADMIN"
-    password: "Welcome_1"
+    password: "Welcome_12345!"
     maxPoolSize: 10
   oracleMongoApi:
     uri: "mongodb://localhost:27018"

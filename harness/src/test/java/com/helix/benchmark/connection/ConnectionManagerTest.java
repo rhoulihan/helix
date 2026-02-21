@@ -61,7 +61,7 @@ class ConnectionManagerTest {
     void shouldReturnJdbcCredentials() {
         ConnectionManager cm = new ConnectionManager(config);
         assertThat(cm.getJdbcUsername()).isEqualTo("ADMIN");
-        assertThat(cm.getJdbcPassword()).isEqualTo("Welcome_1");
+        assertThat(cm.getJdbcPassword()).isEqualTo("Welcome_12345!");
     }
 
     @Test

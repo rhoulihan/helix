@@ -16,7 +16,7 @@ services:
           cpus: '2.0'
 
   oracle:
-    image: container-registry.oracle.com/database/adb-free:latest
+    image: container-registry.oracle.com/database/adb-free:latest-23ai
     container_name: helix-oracle
     ports:
       - "1521:1522"
@@ -25,8 +25,14 @@ services:
       - "27018:27017"
     environment:
       - WORKLOAD_TYPE=ATP
-    volumes:
-      - oracle-data:/u01/data
+      - ADMIN_PASSWORD=Welcome_12345!
+      - WALLET_PASSWORD=Welcome_12345!
+    cap_add:
+      - SYS_ADMIN
+    devices:
+      - /dev/fuse
+    tmpfs:
+      - /u01/data
     healthcheck:
       test: ["CMD-SHELL", "curl -ks https://localhost:8443/ords/admin/_/db-api/stable/metadata-catalog/ || exit 1"]
       interval: 30s
@@ -36,4 +42,3 @@ services:
 
 volumes:
   mongo-data:
-  oracle-data:
