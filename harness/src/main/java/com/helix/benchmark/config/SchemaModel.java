@@ -3,10 +3,8 @@ package com.helix.benchmark.config;
 import java.util.List;
 
 public enum SchemaModel {
-    EMBEDDED("Model A: Embedded (4 collections)", 4,
-            List.of("account", "advisor", "bookRoleGroup", "bookRoleInvestor")),
-    NORMALIZED("Model B: Normalized (1 collection)", 1,
-            List.of("helix"));
+    EMBEDDED("Embedded (4 collections)", 4,
+            List.of("account", "advisor", "bookRoleGroup", "bookRoleInvestor"));
 
     private final String displayName;
     private final int collectionCount;
@@ -24,10 +22,6 @@ public enum SchemaModel {
 
     public int collectionCount() {
         return collectionCount;
-    }
-
-    public boolean isNormalized() {
-        return this == NORMALIZED;
     }
 
     public List<String> collectionNames() {

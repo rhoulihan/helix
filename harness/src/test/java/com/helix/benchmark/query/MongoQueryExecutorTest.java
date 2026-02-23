@@ -2,6 +2,9 @@ package com.helix.benchmark.query;
 
 import com.helix.benchmark.config.DatabaseTarget;
 import com.helix.benchmark.config.SchemaModel;
+import org.bson.Document;
+import org.bson.codecs.configuration.CodecRegistries;
+import org.bson.codecs.configuration.CodecRegistry;
 import org.bson.conversions.Bson;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -18,7 +21,7 @@ class MongoQueryExecutorTest {
 
     @ParameterizedTest
     @EnumSource(QueryDefinition.class)
-    void shouldBuildPipelineForAllQueriesEmbeddedModel(QueryDefinition query) {
+    void shouldBuildPipelineForAllQueries(QueryDefinition query) {
         Map<String, Object> params = stubParams(query);
         if (query.isAggregation()) {
             List<Bson> pipeline = executor.buildAggregationPipeline(query, SchemaModel.EMBEDDED, params, DatabaseTarget.MONGO_NATIVE);
@@ -29,21 +32,8 @@ class MongoQueryExecutorTest {
         }
     }
 
-    @ParameterizedTest
-    @EnumSource(QueryDefinition.class)
-    void shouldBuildPipelineForAllQueriesNormalizedModel(QueryDefinition query) {
-        Map<String, Object> params = stubParams(query);
-        if (query.isAggregation()) {
-            List<Bson> pipeline = executor.buildAggregationPipeline(query, SchemaModel.NORMALIZED, params, DatabaseTarget.MONGO_NATIVE);
-            assertThat(pipeline).isNotEmpty();
-        } else {
-            Bson filter = executor.buildFindFilter(query, SchemaModel.NORMALIZED, params);
-            assertThat(filter).isNotNull();
-        }
-    }
-
     @Test
-    void q1EmbeddedPipelineShouldHaveMatchUnwindMatchProjectSortLimit() {
+    void q1PipelineShouldHaveMatchUnwindMatchProjectSortLimit() {
         Map<String, Object> params = Map.of("advisorId", "ADV001");
         List<Bson> pipeline = executor.buildAggregationPipeline(
                 QueryDefinition.Q1, SchemaModel.EMBEDDED, params, DatabaseTarget.MONGO_NATIVE);
@@ -63,28 +53,63 @@ class MongoQueryExecutorTest {
     }
 
     @Test
-    void q1NormalizedShouldAddTypeFilter() {
-        Map<String, Object> params = Map.of("advisorId", "ADV001");
-        List<Bson> pipeline = executor.buildAggregationPipeline(
-                QueryDefinition.Q1, SchemaModel.NORMALIZED, params, DatabaseTarget.MONGO_NATIVE);
-        // First stage should contain type filter
-        assertThat(pipeline.get(0).toBsonDocument().toJson()).contains("BookRoleInvestor");
-    }
-
-    @Test
     void shouldReturnCollectionNameForEmbedded() {
-        assertThat(executor.getCollectionName(QueryDefinition.Q1, SchemaModel.EMBEDDED))
+        assertThat(executor.getCollectionName(QueryDefinition.Q1, SchemaModel.EMBEDDED, DatabaseTarget.MONGO_NATIVE))
                 .isEqualTo("bookRoleInvestor");
-        assertThat(executor.getCollectionName(QueryDefinition.Q7, SchemaModel.EMBEDDED))
+        assertThat(executor.getCollectionName(QueryDefinition.Q7, SchemaModel.EMBEDDED, DatabaseTarget.MONGO_NATIVE))
                 .isEqualTo("account");
     }
 
     @Test
-    void shouldReturnHelixCollectionForNormalized() {
-        assertThat(executor.getCollectionName(QueryDefinition.Q1, SchemaModel.NORMALIZED))
-                .isEqualTo("helix");
-        assertThat(executor.getCollectionName(QueryDefinition.Q7, SchemaModel.NORMALIZED))
-                .isEqualTo("helix");
+    void shouldReturnDvCollectionNameForOracleMongoApiDv() {
+        assertThat(executor.getCollectionName(QueryDefinition.Q1, SchemaModel.EMBEDDED, DatabaseTarget.ORACLE_MONGO_API_DV))
+                .isEqualTo("dv_book_role_investor");
+        assertThat(executor.getCollectionName(QueryDefinition.Q5, SchemaModel.EMBEDDED, DatabaseTarget.ORACLE_MONGO_API_DV))
+                .isEqualTo("dv_book_role_group");
+        assertThat(executor.getCollectionName(QueryDefinition.Q7, SchemaModel.EMBEDDED, DatabaseTarget.ORACLE_MONGO_API_DV))
+                .isEqualTo("dv_account");
+        assertThat(executor.getCollectionName(QueryDefinition.Q8, SchemaModel.EMBEDDED, DatabaseTarget.ORACLE_MONGO_API_DV))
+                .isEqualTo("dv_advisor");
+    }
+
+    @Test
+    void shouldReturnOriginalCollectionNameForOracleMongoApi() {
+        assertThat(executor.getCollectionName(QueryDefinition.Q1, SchemaModel.EMBEDDED, DatabaseTarget.ORACLE_MONGO_API))
+                .isEqualTo("bookRoleInvestor");
+    }
+
+    @Test
+    void q1OracleMongoApiDvShouldNotHaveSetWindowFields() {
+        Map<String, Object> params = Map.of("advisorId", "ADV001");
+        List<Bson> pipeline = executor.buildAggregationPipeline(
+                QueryDefinition.Q1, SchemaModel.EMBEDDED, params, DatabaseTarget.ORACLE_MONGO_API_DV);
+        List<Bson> nativePipeline = executor.buildAggregationPipeline(
+                QueryDefinition.Q1, SchemaModel.EMBEDDED, params, DatabaseTarget.MONGO_NATIVE);
+        assertThat(pipeline.size()).isEqualTo(nativePipeline.size() - 1);
+    }
+
+    @Test
+    void serializePipelineShouldProduceJsonArray() {
+        Map<String, Object> params = Map.of("advisorId", "ADV001");
+        List<Bson> pipeline = executor.buildAggregationPipeline(
+                QueryDefinition.Q1, SchemaModel.EMBEDDED, params, DatabaseTarget.MONGO_NATIVE);
+        CodecRegistry registry = CodecRegistries.fromRegistries(
+                com.mongodb.MongoClientSettings.getDefaultCodecRegistry());
+        String json = executor.serializePipeline(pipeline, registry);
+        assertThat(json).startsWith("[");
+        assertThat(json).endsWith("]");
+        assertThat(json).contains("$match");
+    }
+
+    @Test
+    void serializeFilterShouldProduceJson() {
+        Map<String, Object> params = Map.of("pxPartyRoleId", 123L, "fundTicker", "VTI");
+        Bson filter = executor.buildFindFilter(QueryDefinition.Q7, SchemaModel.EMBEDDED, params);
+        CodecRegistry registry = CodecRegistries.fromRegistries(
+                com.mongodb.MongoClientSettings.getDefaultCodecRegistry());
+        String json = executor.serializeFilter(filter, registry);
+        assertThat(json).contains("pxPartyRoleIdList");
+        assertThat(json).contains("fundTicker");
     }
 
     private Map<String, Object> stubParams(QueryDefinition query) {

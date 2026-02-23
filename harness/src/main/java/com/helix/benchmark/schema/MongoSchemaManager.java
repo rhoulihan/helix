@@ -17,10 +17,7 @@ public class MongoSchemaManager implements SchemaManager {
     }
 
     public List<IndexDefinition> getIndexDefinitions(SchemaModel model) {
-        return switch (model) {
-            case EMBEDDED -> embeddedIndexes();
-            case NORMALIZED -> normalizedIndexes();
-        };
+        return embeddedIndexes();
     }
 
     private List<IndexDefinition> embeddedIndexes() {
@@ -53,23 +50,6 @@ public class MongoSchemaManager implements SchemaManager {
         indexes.add(idx("advisor", "entitlements.pxPartyRoleIdList", 1));
         indexes.add(idx("advisor", "accountViewableMarketValue", 1));
         indexes.add(idx("advisor", "advisorHierarchy.partyNodePathNm", 1, "advisorHierarchy.partyNodePathValue", 1));
-
-        return indexes;
-    }
-
-    private List<IndexDefinition> normalizedIndexes() {
-        List<IndexDefinition> indexes = new ArrayList<>();
-
-        indexes.add(idx("helix", "type", 1, "advisorId", 1));
-        indexes.add(idx("helix", "type", 1, "entitlements.advisoryContext", 1));
-        indexes.add(idx("helix", "type", 1, "entitlements.pxPartyRoleIdList", 1));
-        indexes.add(idx("helix", "type", 1, "investorType", 1, "viewableSource", 1));
-        indexes.add(idx("helix", "type", 1, "advisorsMetadata.advisorId", 1));
-        indexes.add(idx("helix", "type", 1, "dataOwnerPartyRoleId", 1, "personaNm", 1));
-        indexes.add(idx("helix", "type", 1, "holdings.fundTicker", 1));
-        indexes.add(idx("helix", "type", 1, "accountViewableMarketValue", 1));
-        indexes.add(idx("helix", "advisorHierarchy.partyNodePathNm", 1, "advisorHierarchy.partyNodePathValue", 1));
-        indexes.add(idx("helix", "advisorIds", 1));
 
         return indexes;
     }

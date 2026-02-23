@@ -1,23 +1,18 @@
 benchmark:
-  warmUpIterations: 50
-  measurementIterations: 200
-  batchSize: 1000
-  jdbcBatchSize: 500
-  activeTargets:
-    - MONGO_NATIVE
-    - ORACLE_RELATIONAL
-    - ORACLE_DUALITY_VIEW
-    - ORACLE_MONGO_API_DV
+  warmUpIterations: 3
+  measurementIterations: 10
+  batchSize: 500
+  jdbcBatchSize: 250
 
 dataGeneration:
-  advisorCount: 3000
-  accountCount: 300000
-  bookRoleGroupCount: 90000
-  bookRoleInvestorCount: 450000
-  advisoryContextPoolSize: 15000
-  partyRoleIdPoolSize: 30000
-  finInstIdPoolSize: 150
-  targetSizeGb: 4.5
+  advisorCount: 50
+  accountCount: 500
+  bookRoleGroupCount: 150
+  bookRoleInvestorCount: 750
+  advisoryContextPoolSize: 100
+  partyRoleIdPoolSize: 200
+  finInstIdPoolSize: 10
+  targetSizeGb: 0.01
 
 connections:
   mongoNative:
@@ -27,8 +22,7 @@ connections:
     url: "jdbc:oracle:thin:@(description=(retry_count=0)(retry_delay=3)(address=(protocol=tcps)(port=1521)(host=localhost))(connect_data=(service_name=myatp_low.adb.oraclecloud.com))(security=(ssl_server_dn_match=no)))"
     username: "ADMIN"
     password: "Welcome_12345!"
-    maxPoolSize: 10
-    ordsBaseUrl: "https://localhost:8443/ords/admin"
+    maxPoolSize: 5
   oracleMongoApi:
     uri: "mongodb://ADMIN:Welcome_12345!@localhost:27018/admin?authMechanism=PLAIN&authSource=$external&tls=true&tlsInsecure=true&loadBalanced=true&retryWrites=false"
     database: "ADMIN"

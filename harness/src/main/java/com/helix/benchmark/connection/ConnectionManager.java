@@ -13,18 +13,18 @@ public class ConnectionManager {
     public String getMongoConnectionString(DatabaseTarget target) {
         return switch (target) {
             case MONGO_NATIVE -> config.mongoNativeUri();
-            case ORACLE_MONGO_API -> config.oracleMongoApiUri();
-            case ORACLE_JDBC -> throw new IllegalArgumentException(
-                    "ORACLE_JDBC does not use MongoDB driver");
+            case ORACLE_MONGO_API, ORACLE_MONGO_API_DV -> config.oracleMongoApiUri();
+            case ORACLE_JDBC, ORACLE_RELATIONAL, ORACLE_DUALITY_VIEW -> throw new IllegalArgumentException(
+                    target + " does not use MongoDB driver");
         };
     }
 
     public String getDatabaseName(DatabaseTarget target) {
         return switch (target) {
             case MONGO_NATIVE -> config.mongoNativeDatabase();
-            case ORACLE_MONGO_API -> config.oracleMongoApiDatabase();
-            case ORACLE_JDBC -> throw new IllegalArgumentException(
-                    "ORACLE_JDBC does not use MongoDB database name");
+            case ORACLE_MONGO_API, ORACLE_MONGO_API_DV -> config.oracleMongoApiDatabase();
+            case ORACLE_JDBC, ORACLE_RELATIONAL, ORACLE_DUALITY_VIEW -> throw new IllegalArgumentException(
+                    target + " does not use MongoDB database name");
         };
     }
 

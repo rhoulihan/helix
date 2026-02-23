@@ -1,8 +1,6 @@
 package com.helix.benchmark.datagen;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -149,8 +147,16 @@ public class ReferenceRegistry {
 
     private <T> List<T> randomSubset(List<T> list, int count) {
         int actualCount = Math.min(count, list.size());
-        List<T> shuffled = new ArrayList<>(list);
-        Collections.shuffle(shuffled, ThreadLocalRandom.current());
-        return shuffled.subList(0, actualCount);
+        if (actualCount == 0) return List.of();
+        // Use index sampling instead of shuffling the entire list
+        Set<Integer> indices = new HashSet<>();
+        while (indices.size() < actualCount) {
+            indices.add(ThreadLocalRandom.current().nextInt(list.size()));
+        }
+        List<T> result = new ArrayList<>(actualCount);
+        for (int idx : indices) {
+            result.add(list.get(idx));
+        }
+        return result;
     }
 }

@@ -1,16 +1,13 @@
 package com.helix.benchmark.datagen;
 
-import net.datafaker.Faker;
 import org.bson.Document;
 
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class TestDataGenerator {
     private final ReferenceRegistry registry;
-    private final Faker faker = new Faker();
 
     private static final String[] PERSONAS = {"Home Office", "Wove Administrator", "Advisor", "Investor"};
     private static final String[] BOOK_ROLES = {"Home Office", "Primary", "Secondary", "Service Team"};
@@ -18,24 +15,70 @@ public class TestDataGenerator {
     private static final String[] STATES = {"NY", "CA", "TX", "FL", "PA", "OH", "IL", "GA", "NC", "MI"};
     private static final String[] ETL_SOURCES = {"xyz", "abc"};
 
+    // Pre-generated pools for fast random data (avoids Faker overhead)
+    private static final String[] FIRST_NAMES = {
+            "JAMES", "MARY", "JOHN", "PATRICIA", "ROBERT", "JENNIFER", "MICHAEL", "LINDA",
+            "WILLIAM", "ELIZABETH", "DAVID", "BARBARA", "RICHARD", "SUSAN", "JOSEPH", "JESSICA",
+            "THOMAS", "SARAH", "CHARLES", "KAREN", "CHRISTOPHER", "LISA", "DANIEL", "NANCY",
+            "MATTHEW", "BETTY", "ANTHONY", "MARGARET", "MARK", "SANDRA", "DONALD", "ASHLEY",
+            "STEVEN", "KIMBERLY", "PAUL", "EMILY", "ANDREW", "DONNA", "JOSHUA", "MICHELLE",
+            "KEVIN", "DOROTHY", "BRIAN", "CAROL", "GEORGE", "AMANDA", "TIMOTHY", "MELISSA",
+            "RONALD", "DEBORAH", "EDWARD", "STEPHANIE", "JASON", "REBECCA", "JEFFREY", "SHARON",
+            "RYAN", "LAURA", "JACOB", "CYNTHIA", "GARY", "KATHLEEN", "NICHOLAS", "AMY"
+    };
+    private static final String[] LAST_NAMES = {
+            "SMITH", "JOHNSON", "WILLIAMS", "BROWN", "JONES", "GARCIA", "MILLER", "DAVIS",
+            "RODRIGUEZ", "MARTINEZ", "HERNANDEZ", "LOPEZ", "GONZALEZ", "WILSON", "ANDERSON",
+            "THOMAS", "TAYLOR", "MOORE", "JACKSON", "MARTIN", "LEE", "PEREZ", "THOMPSON",
+            "WHITE", "HARRIS", "SANCHEZ", "CLARK", "RAMIREZ", "LEWIS", "ROBINSON", "WALKER",
+            "YOUNG", "ALLEN", "KING", "WRIGHT", "SCOTT", "TORRES", "NGUYEN", "HILL", "FLORES",
+            "GREEN", "ADAMS", "NELSON", "BAKER", "HALL", "RIVERA", "CAMPBELL", "MITCHELL"
+    };
+    private static final String[] CITIES = {
+            "NEW YORK", "LOS ANGELES", "CHICAGO", "HOUSTON", "PHOENIX", "PHILADELPHIA",
+            "SAN ANTONIO", "SAN DIEGO", "DALLAS", "SAN JOSE", "AUSTIN", "JACKSONVILLE",
+            "FORT WORTH", "COLUMBUS", "CHARLOTTE", "INDIANAPOLIS", "SAN FRANCISCO", "SEATTLE",
+            "DENVER", "NASHVILLE", "OKLAHOMA CITY", "PORTLAND", "LAS VEGAS", "MEMPHIS",
+            "LOUISVILLE", "BALTIMORE", "MILWAUKEE", "ALBUQUERQUE", "TUCSON", "FRESNO"
+    };
+    private static final String[] COMPANY_NAMES = {
+            "GLOBAL ADVISORS LLC", "CAPITAL MANAGEMENT GROUP", "WEALTH SOLUTIONS INC",
+            "FINANCIAL PARTNERS CORP", "PREMIER INVESTMENTS", "STRATEGIC CAPITAL MGMT",
+            "HARBOR FINANCIAL GROUP", "SUMMIT WEALTH ADVISORS", "PINNACLE ASSET MGMT",
+            "ALLIANCE FINANCIAL SERVICES", "HERITAGE CAPITAL GROUP", "FRONTIER INVESTMENTS",
+            "PACIFIC WEALTH MANAGEMENT", "ATLANTIC ADVISORY GROUP", "GOLDEN STATE ADVISORS",
+            "EMPIRE FINANCIAL CORP", "CONTINENTAL WEALTH GROUP", "NATIONAL CAPITAL MGMT"
+    };
+    private static final String[] BUZZWORDS = {
+            "GROWTH", "VALUE", "EQUITY", "INCOME", "BALANCED", "AGGRESSIVE", "CONSERVATIVE",
+            "DIVERSIFIED", "INTERNATIONAL", "DOMESTIC", "SMALL CAP", "MID CAP", "LARGE CAP",
+            "EMERGING", "SUSTAINABLE", "TECHNOLOGY", "HEALTHCARE", "ENERGY", "REAL ESTATE"
+    };
+
     public TestDataGenerator(ReferenceRegistry registry) {
         this.registry = registry;
     }
 
     public List<Document> generateAdvisors(int count) {
+        return generateAdvisors(0, count);
+    }
+
+    public List<Document> generateAdvisors(int startIndex, int count) {
         List<Document> result = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
-            String id = String.valueOf(1_000_000_000_000L + registry.getAdvisorIds().size() + i);
+            String id = String.valueOf(1_000_000_000_000L + startIndex + i);
+            String firstName = randomChoice(FIRST_NAMES);
+            String lastName = randomChoice(LAST_NAMES);
             Document doc = new Document()
                     .append("_id", id)
-                    .append("advisorName", faker.name().fullName().toUpperCase())
+                    .append("advisorName", firstName + " " + lastName)
                     .append("pxId", "F" + ThreadLocalRandom.current().nextInt(10, 999))
-                    .append("partyNodeLabelId", String.valueOf(300000 + i))
+                    .append("partyNodeLabelId", String.valueOf(300000 + startIndex + i))
                     .append("advisorTaxId", String.valueOf(ThreadLocalRandom.current().nextInt(10000000, 99999999)))
                     .append("userType", randomChoice("bcd", "abc", "xyz"))
                     .append("finInstId", registry.randomFinInstId())
                     .append("advState", randomChoice(STATES))
-                    .append("advisorFullName", faker.name().fullName().toUpperCase())
+                    .append("advisorFullName", firstName + " " + lastName)
                     .append("advSetupTmst", randomDate(2010, 2018))
                     .append("advUpdateTmst", randomDate(2018, 2025))
                     .append("advAcctMethod", randomChoice("avd", "avg", "ffo"))
@@ -43,9 +86,9 @@ public class TestDataGenerator {
                     .append("riaIarQuestion", randomChoice("Y", "N"))
                     .append("dbaQuestion", randomChoice("Y", "N"))
                     .append("noOfSegments", String.valueOf(ThreadLocalRandom.current().nextInt(1, 50)))
-                    .append("finInstName", faker.company().name())
-                    .append("finLastName", faker.name().lastName().toUpperCase())
-                    .append("finFirstName", faker.name().firstName().toUpperCase())
+                    .append("finInstName", randomChoice(COMPANY_NAMES))
+                    .append("finLastName", randomChoice(LAST_NAMES))
+                    .append("finFirstName", randomChoice(FIRST_NAMES))
                     .append("accountViewableMarketValue", randomMarketValue())
                     .append("viewableInvestorCount", ThreadLocalRandom.current().nextLong(1, 50))
                     .append("accountViewableCount", ThreadLocalRandom.current().nextLong(1, 50))
@@ -54,8 +97,8 @@ public class TestDataGenerator {
                     .append("advisorHierarchy", buildAdvisorHierarchy())
                     .append("entitlements", buildEntitlements())
                     .append("state", randomChoice(STATES))
-                    .append("city", faker.address().city())
-                    .append("zip", faker.address().zipCode())
+                    .append("city", randomChoice(CITIES))
+                    .append("zip", randomZip())
                     .append("country", "USA")
                     .append("status", randomChoice("VIEWABLE", "Active"))
                     .append("viewableSource", weightedChoice("Y", 0.8, "N"))
@@ -68,13 +111,17 @@ public class TestDataGenerator {
     }
 
     public List<Document> generateBookRoleInvestors(int count) {
+        return generateBookRoleInvestors(0, count);
+    }
+
+    public List<Document> generateBookRoleInvestors(int startIndex, int count) {
         List<Document> result = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
             long finInstId = registry.randomFinInstId();
-            String investorId = String.valueOf(100_000_000_000L + registry.getInvestorIds().size() + i);
+            String investorId = String.valueOf(100_000_000_000L + startIndex + i);
             String id = finInstId + "_" + investorId;
-            String firstName = faker.name().firstName().toUpperCase();
-            String lastName = faker.name().lastName().toUpperCase();
+            String firstName = randomChoice(FIRST_NAMES);
+            String lastName = randomChoice(LAST_NAMES);
 
             int advisorCount = ThreadLocalRandom.current().nextInt(1, 5);
             List<Document> advisors = buildEmbeddedAdvisors(advisorCount);
@@ -103,9 +150,9 @@ public class TestDataGenerator {
                     .append("investorMiddleName", "")
                     .append("investorFullName", firstName + " " + lastName)
                     .append("investorpartyRoleId", ThreadLocalRandom.current().nextLong(1, 100_000_000))
-                    .append("investorCity", faker.address().city())
+                    .append("investorCity", randomChoice(CITIES))
                     .append("investorState", randomChoice(STATES))
-                    .append("investorZipCode", faker.address().zipCode())
+                    .append("investorZipCode", randomZip())
                     .append("investorBirthdate", randomDate(1940, 2000))
                     .append("viewableFlag", weightedChoice("Y", 0.85, "N"))
                     .append("viewableSource", weightedChoice("Y", 0.8, "N"))
@@ -124,10 +171,14 @@ public class TestDataGenerator {
     }
 
     public List<Document> generateBookRoleGroups(int count) {
+        return generateBookRoleGroups(0, count);
+    }
+
+    public List<Document> generateBookRoleGroups(int startIndex, int count) {
         List<Document> result = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
             long finInstId = registry.randomFinInstId();
-            String id = finInstId + "_" + (1_000_000 + i);
+            String id = finInstId + "_" + (1_000_000 + startIndex + i);
             int advisorCount = ThreadLocalRandom.current().nextInt(1, 4);
             double marketValue = randomMarketValue();
 
@@ -152,8 +203,8 @@ public class TestDataGenerator {
                     .append("totalViewableAccountCount", ThreadLocalRandom.current().nextLong(1, 50))
                     .append("totalViewableAccountsMarketValue", marketValue * 0.95)
                     .append("advisors", advisors)
-                    .append("accountGroupName", faker.company().name().toUpperCase())
-                    .append("accountGroupId", String.valueOf(10000 + i))
+                    .append("accountGroupName", randomChoice(COMPANY_NAMES) + " GROUP")
+                    .append("accountGroupId", String.valueOf(10000 + startIndex + i))
                     .append("accountGroupType", randomChoice("Performance", "Standard", "Custom"))
                     .append("visibleFlag", weightedChoice("Y", 0.85, "N"))
                     .append("portfolioType", randomChoice("A", "B", "C"))
@@ -165,21 +216,25 @@ public class TestDataGenerator {
     }
 
     public List<Document> generateAccounts(int count) {
+        return generateAccounts(0, count);
+    }
+
+    public List<Document> generateAccounts(int startIndex, int count) {
         List<Document> result = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
-            String id = String.valueOf(1_000_001_000_000L + i);
+            String id = String.valueOf(1_000_001_000_000L + startIndex + i);
             int advisorCount = ThreadLocalRandom.current().nextInt(1, 3);
 
             Document doc = new Document()
                     .append("_id", id)
-                    .append("accountid", "A" + String.format("%06d", i))
+                    .append("accountid", "A" + String.format("%06d", startIndex + i))
                     .append("ssnTin", String.valueOf(ThreadLocalRandom.current().nextInt(1000000, 9999999)))
                     .append("finInstId", registry.randomFinInstId())
-                    .append("clientName", faker.name().fullName().toUpperCase())
-                    .append("clientId", String.valueOf(100000 + i))
-                    .append("finInstName", faker.company().name())
+                    .append("clientName", randomChoice(FIRST_NAMES) + " " + randomChoice(LAST_NAMES))
+                    .append("clientId", String.valueOf(100000 + startIndex + i))
+                    .append("finInstName", randomChoice(COMPANY_NAMES))
                     .append("accountType", randomChoice(ACCOUNT_TYPES))
-                    .append("acctName", faker.company().name().toUpperCase())
+                    .append("acctName", randomChoice(COMPANY_NAMES))
                     .append("viewable", true)
                     .append("viewableSource", weightedChoice("Y", 0.8, "N"))
                     .append("setupTmst", randomDate(2010, 2020))
@@ -189,7 +244,7 @@ public class TestDataGenerator {
                     .append("advisors", buildEmbeddedAdvisors(advisorCount))
                     .append("advisorHierarchy", buildAdvisorHierarchy())
                     .append("holdings", buildHoldings(ThreadLocalRandom.current().nextInt(1, 8)))
-                    .append("acctTitle", faker.company().name().toUpperCase())
+                    .append("acctTitle", randomChoice(COMPANY_NAMES))
                     .append("category", randomChoice("ins", "inv", "ret"))
                     .append("ETLUpdateTS", Instant.now().toString());
 
@@ -198,99 +253,27 @@ public class TestDataGenerator {
         return result;
     }
 
-    public static List<Document> transformToNormalized(Map<String, List<Document>> embedded) {
-        List<Document> normalized = new ArrayList<>();
-
-        for (Document doc : embedded.getOrDefault("advisor", List.of())) {
-            Document norm = new Document(doc);
-            norm.append("type", "Advisor");
-            norm.append("advisorId", doc.getString("_id"));
-            normalized.add(norm);
-        }
-
-        for (Document doc : embedded.getOrDefault("bookRoleInvestor", List.of())) {
-            Document norm = new Document(doc);
-            norm.append("type", "BookRoleInvestor");
-            transformAdvisorsToMetadata(norm);
-            normalized.add(norm);
-        }
-
-        for (Document doc : embedded.getOrDefault("bookRoleGroup", List.of())) {
-            Document norm = new Document(doc);
-            norm.append("type", "BookRoleGroup");
-            transformAdvisorsToMetadata(norm);
-            extractInvestorIds(norm);
-            normalized.add(norm);
-        }
-
-        for (Document doc : embedded.getOrDefault("account", List.of())) {
-            Document norm = new Document(doc);
-            norm.append("type", "Account");
-            transformAdvisorsToMetadata(norm);
-            normalized.add(norm);
-        }
-
-        return normalized;
-    }
-
-    @SuppressWarnings("unchecked")
-    private static void transformAdvisorsToMetadata(Document doc) {
-        List<Document> advisors = (List<Document>) doc.get("advisors");
-        if (advisors == null) return;
-
-        List<String> advisorIds = new ArrayList<>();
-        List<Document> metadata = new ArrayList<>();
-
-        for (Document advisor : advisors) {
-            advisorIds.add(advisor.getString("advisorId"));
-            metadata.add(new Document()
-                    .append("advisorId", advisor.getString("advisorId"))
-                    .append("advisorName", advisor.getString("advisorName"))
-                    .append("noOfViewableAccts", advisor.get("noOfViewableAccts"))
-                    .append("viewableMarketValue", advisor.get("viewableMarketValue"))
-                    .append("bookRoles", advisor.get("bookRoles"))
-                    .append("status", advisor.getString("status")));
-        }
-
-        doc.remove("advisors");
-        doc.append("advisorIds", advisorIds);
-        doc.append("advisorsMetadata", metadata);
-    }
-
-    @SuppressWarnings("unchecked")
-    private static void extractInvestorIds(Document doc) {
-        // In embedded model, investors are nested within advisors
-        // Since we already transformed advisors, we check the original structure
-        // The investorIds are extracted from what was advisors[].investors[]
-        List<Document> metadata = (List<Document>) doc.get("advisorsMetadata");
-        List<String> investorIds = new ArrayList<>();
-        // In the pre-transform state, investors were already extracted;
-        // we'll add a placeholder list from the doc if it exists
-        if (doc.containsKey("investorIds")) return;
-        // For groups, investors were nested in advisors before transform
-        // We add an empty list; actual data comes from the embedded advisors before transform
-        doc.append("investorIds", investorIds);
-    }
-
     // --- Builder helpers ---
 
     private List<Document> buildEmbeddedAdvisors(int count) {
         List<Document> advisors = new ArrayList<>();
         List<String> ids = registry.randomAdvisorIds(count);
         for (String advisorId : ids) {
+            String firstName = randomChoice(FIRST_NAMES);
+            String lastName = randomChoice(LAST_NAMES);
             advisors.add(new Document()
                     .append("advisorId", advisorId)
-                    .append("advisorName", faker.name().fullName().toUpperCase())
+                    .append("advisorName", firstName + " " + lastName)
                     .append("advisorTaxId", String.valueOf(ThreadLocalRandom.current().nextInt(10000000, 99999999)))
                     .append("finInstId", registry.randomFinInstId())
-                    .append("lastName", faker.name().lastName().toUpperCase())
-                    .append("firstName", faker.name().firstName().toUpperCase())
+                    .append("lastName", lastName)
+                    .append("firstName", firstName)
                     .append("middleName", "")
                     .append("state", randomChoice(STATES))
-                    .append("city", faker.address().city())
-                    .append("zipCode", faker.address().zipCode())
+                    .append("city", randomChoice(CITIES))
+                    .append("zipCode", randomZip())
                     .append("country", "USA")
-                    .append("businessPhone", faker.phoneNumber().phoneNumber())
+                    .append("businessPhone", randomPhone())
                     .append("bookRoles", randomSubList(BOOK_ROLES, 1, 2))
                     .append("bookType", randomChoice("WRI", "ADV", "HO"))
                     .append("marketValue", randomMarketValue())
@@ -299,7 +282,7 @@ public class TestDataGenerator {
                     .append("viewableMarketValue", randomMarketValue())
                     .append("status", weightedChoice("Active", 0.9, "Inactive"))
                     .append("isPrimary", ThreadLocalRandom.current().nextBoolean())
-                    .append("email", faker.internet().emailAddress()));
+                    .append("email", randomEmail(firstName, lastName)));
         }
         return advisors;
     }
@@ -314,14 +297,16 @@ public class TestDataGenerator {
             investors.add(new Document("investorId", invId));
         }
 
+        String firstName = randomChoice(FIRST_NAMES);
+        String lastName = randomChoice(LAST_NAMES);
         return new Document()
                 .append("advisorId", advisorId)
                 .append("advisorTaxId", String.valueOf(ThreadLocalRandom.current().nextInt(10000000, 99999999)))
                 .append("finInstId", registry.randomFinInstId())
-                .append("firstName", faker.name().firstName().toUpperCase())
+                .append("firstName", firstName)
                 .append("middleName", "")
-                .append("lastName", faker.name().lastName().toUpperCase())
-                .append("advisorName", faker.name().fullName().toUpperCase())
+                .append("lastName", lastName)
+                .append("advisorName", firstName + " " + lastName)
                 .append("bookRoles", randomSubList(BOOK_ROLES, 1, 2))
                 .append("bookType", randomChoice("WRI", "ADV"))
                 .append("totalViewableAccountsMarketValue", randomMarketValue())
@@ -349,7 +334,7 @@ public class TestDataGenerator {
                 .append("advisoryContext", contexts)
                 .append("pxClient", new Document()
                         .append("pxClientId", String.valueOf(finInstId))
-                        .append("pxClientName", faker.company().name())
+                        .append("pxClientName", randomChoice(COMPANY_NAMES))
                         .append("Id", String.valueOf(finInstId))
                         .append("dataOwnerPartyRoleId", finInstId));
     }
@@ -396,9 +381,9 @@ public class TestDataGenerator {
         for (int i = 0; i < count; i++) {
             holdings.add(new Document()
                     .append("fundId", String.valueOf(1000 + i))
-                    .append("fundName", "CAPITAL " + faker.company().buzzword().toUpperCase())
+                    .append("fundName", "CAPITAL " + randomChoice(BUZZWORDS))
                     .append("fundTicker", registry.randomFundTicker())
-                    .append("mgtName", faker.company().name())
+                    .append("mgtName", randomChoice(COMPANY_NAMES))
                     .append("dividendRate", Math.round(ThreadLocalRandom.current().nextDouble(0, 5) * 10000.0) / 10000.0));
         }
         return holdings;
@@ -424,15 +409,30 @@ public class TestDataGenerator {
         );
     }
 
-    private double randomMarketValue() {
+    private static double randomMarketValue() {
         return Math.round(ThreadLocalRandom.current().nextDouble(1000, 50_000_000) * 100.0) / 100.0;
     }
 
-    private Date randomDate(int yearFrom, int yearTo) {
+    private static Date randomDate(int yearFrom, int yearTo) {
         long minEpoch = Instant.parse(yearFrom + "-01-01T00:00:00Z").toEpochMilli();
         long maxEpoch = Instant.parse(yearTo + "-01-01T00:00:00Z").toEpochMilli();
         long randomEpoch = ThreadLocalRandom.current().nextLong(minEpoch, maxEpoch);
         return Date.from(Instant.ofEpochMilli(randomEpoch));
+    }
+
+    private static String randomZip() {
+        return String.format("%05d", ThreadLocalRandom.current().nextInt(10000, 99999));
+    }
+
+    private static String randomPhone() {
+        return String.format("(%03d) %03d-%04d",
+                ThreadLocalRandom.current().nextInt(200, 999),
+                ThreadLocalRandom.current().nextInt(200, 999),
+                ThreadLocalRandom.current().nextInt(1000, 9999));
+    }
+
+    private static String randomEmail(String firstName, String lastName) {
+        return firstName.toLowerCase() + "." + lastName.toLowerCase() + "@example.com";
     }
 
     @SafeVarargs

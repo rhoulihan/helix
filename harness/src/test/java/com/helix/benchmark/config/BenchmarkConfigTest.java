@@ -41,7 +41,7 @@ class BenchmarkConfigTest {
     void shouldParseConnectionSettings() {
         BenchmarkConfig config = loadTestConfig();
 
-        assertThat(config.mongoNativeUri()).isEqualTo("mongodb://localhost:27017");
+        assertThat(config.mongoNativeUri()).isEqualTo("mongodb://localhost:27017/?replicaSet=rs0&w=1&journal=true");
         assertThat(config.mongoNativeDatabase()).isEqualTo("helix");
         assertThat(config.oracleJdbcUrl()).isEqualTo("jdbc:oracle:thin:@localhost:1521/helix");
         assertThat(config.oracleMongoApiUri()).isEqualTo("mongodb://localhost:27018");
@@ -63,9 +63,9 @@ class BenchmarkConfigTest {
 
     @Test
     void shouldEnumerateAllSixConfigurations() {
-        assertThat(DatabaseTarget.values()).hasSize(3);
-        assertThat(SchemaModel.values()).hasSize(2);
-        // 3 targets x 2 models = 6 configurations
+        assertThat(DatabaseTarget.values()).hasSize(6);
+        assertThat(SchemaModel.values()).hasSize(1);
+        // 6 targets x 1 model = 6 configurations
         int totalConfigs = DatabaseTarget.values().length * SchemaModel.values().length;
         assertThat(totalConfigs).isEqualTo(6);
     }

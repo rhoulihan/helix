@@ -7,20 +7,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 class SchemaModelTest {
 
     @Test
-    void shouldHaveTwoModels() {
-        assertThat(SchemaModel.values()).hasSize(2);
+    void shouldHaveOneModel() {
+        assertThat(SchemaModel.values()).hasSize(1);
     }
 
     @Test
     void embeddedShouldUseFourCollections() {
         assertThat(SchemaModel.EMBEDDED.collectionCount()).isEqualTo(4);
-        assertThat(SchemaModel.EMBEDDED.isNormalized()).isFalse();
-    }
-
-    @Test
-    void normalizedShouldUseOneCollection() {
-        assertThat(SchemaModel.NORMALIZED.collectionCount()).isEqualTo(1);
-        assertThat(SchemaModel.NORMALIZED.isNormalized()).isTrue();
     }
 
     @Test
@@ -30,14 +23,7 @@ class SchemaModelTest {
     }
 
     @Test
-    void normalizedCollectionNameShouldBeHelix() {
-        assertThat(SchemaModel.NORMALIZED.collectionNames())
-                .containsExactly("helix");
-    }
-
-    @Test
-    void shouldHaveDisplayNames() {
-        assertThat(SchemaModel.EMBEDDED.displayName()).isEqualTo("Model A: Embedded (4 collections)");
-        assertThat(SchemaModel.NORMALIZED.displayName()).isEqualTo("Model B: Normalized (1 collection)");
+    void shouldHaveDisplayName() {
+        assertThat(SchemaModel.EMBEDDED.displayName()).isEqualTo("Embedded (4 collections)");
     }
 }

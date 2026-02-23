@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -15,7 +16,7 @@ class OracleJdbcQueryExecutorTest {
 
     @ParameterizedTest
     @EnumSource(QueryDefinition.class)
-    void shouldGenerateSqlForAllQueriesEmbeddedModel(QueryDefinition query) {
+    void shouldGenerateSqlForAllQueries(QueryDefinition query) {
         Map<String, Object> params = stubParams(query);
         OracleJdbcQueryExecutor.SqlQuery sql = executor.buildSql(query, SchemaModel.EMBEDDED, params);
         assertThat(sql).isNotNull();
@@ -23,30 +24,12 @@ class OracleJdbcQueryExecutorTest {
         assertThat(sql.sql()).containsIgnoringCase("SELECT");
     }
 
-    @ParameterizedTest
-    @EnumSource(QueryDefinition.class)
-    void shouldGenerateSqlForAllQueriesNormalizedModel(QueryDefinition query) {
-        Map<String, Object> params = stubParams(query);
-        OracleJdbcQueryExecutor.SqlQuery sql = executor.buildSql(query, SchemaModel.NORMALIZED, params);
-        assertThat(sql).isNotNull();
-        assertThat(sql.sql()).isNotBlank();
-    }
-
     @Test
-    void q1EmbeddedShouldQueryBookRoleInvestorTable() {
+    void q1ShouldQueryBookRoleInvestorTable() {
         Map<String, Object> params = Map.of("advisorId", "ADV001");
         OracleJdbcQueryExecutor.SqlQuery sql = executor.buildSql(
                 QueryDefinition.Q1, SchemaModel.EMBEDDED, params);
-        assertThat(sql.sql()).containsIgnoringCase("book_role_investor");
-    }
-
-    @Test
-    void q1NormalizedShouldQueryHelixTableWithTypeFilter() {
-        Map<String, Object> params = Map.of("advisorId", "ADV001");
-        OracleJdbcQueryExecutor.SqlQuery sql = executor.buildSql(
-                QueryDefinition.Q1, SchemaModel.NORMALIZED, params);
-        assertThat(sql.sql()).containsIgnoringCase("helix");
-        assertThat(sql.sql()).containsIgnoringCase("BookRoleInvestor");
+        assertThat(sql.sql()).containsIgnoringCase("jdbc_book_role_investor");
     }
 
     @Test
@@ -55,6 +38,42 @@ class OracleJdbcQueryExecutorTest {
         OracleJdbcQueryExecutor.SqlQuery sql = executor.buildSql(
                 QueryDefinition.Q1, SchemaModel.EMBEDDED, params);
         assertThat(sql.sql()).containsIgnoringCase("JSON_TABLE");
+    }
+
+    @Test
+    void q1ThroughQ4ShouldUseJsonExistsForAdvisorPreFilter() {
+        for (QueryDefinition query : new QueryDefinition[]{
+                QueryDefinition.Q1, QueryDefinition.Q2, QueryDefinition.Q3, QueryDefinition.Q4}) {
+            Map<String, Object> params = stubParams(query);
+            OracleJdbcQueryExecutor.SqlQuery sql = executor.buildSql(query, SchemaModel.EMBEDDED, params);
+            assertThat(sql.sql())
+                    .as("Query %s should use json_exists to pre-filter by advisorId", query)
+                    .containsIgnoringCase("json_exists(b.data, '$.advisors[*]?(@.advisorId == $aid)'");
+        }
+    }
+
+    @Test
+    void q1ThroughQ4ShouldNotUseJsonSerializeWithWildcard() {
+        for (QueryDefinition query : new QueryDefinition[]{
+                QueryDefinition.Q1, QueryDefinition.Q2, QueryDefinition.Q3, QueryDefinition.Q4}) {
+            Map<String, Object> params = stubParams(query);
+            OracleJdbcQueryExecutor.SqlQuery sql = executor.buildSql(query, SchemaModel.EMBEDDED, params);
+            assertThat(sql.sql())
+                    .as("Query %s should not use json_serialize with wildcard", query)
+                    .doesNotContain("json_serialize(matched.*");
+        }
+    }
+
+    @Test
+    void q1ThroughQ4ShouldUseSelectStarFromSubquery() {
+        for (QueryDefinition query : new QueryDefinition[]{
+                QueryDefinition.Q1, QueryDefinition.Q2, QueryDefinition.Q3, QueryDefinition.Q4}) {
+            Map<String, Object> params = stubParams(query);
+            OracleJdbcQueryExecutor.SqlQuery sql = executor.buildSql(query, SchemaModel.EMBEDDED, params);
+            assertThat(sql.sql())
+                    .as("Query %s should SELECT * FROM subquery", query)
+                    .containsIgnoringCase("SELECT * FROM");
+        }
     }
 
     @Test
@@ -89,6 +108,72 @@ class OracleJdbcQueryExecutorTest {
         OracleJdbcQueryExecutor.SqlQuery sql = executor.buildSql(
                 QueryDefinition.Q1, SchemaModel.EMBEDDED, params);
         assertThat(sql.parameters()).isNotEmpty();
+    }
+
+    @Test
+    void substituteLiteralsShouldReplaceBindPlaceholders() {
+        OracleJdbcQueryExecutor.SqlQuery query = new OracleJdbcQueryExecutor.SqlQuery(
+                "SELECT * FROM t WHERE a = ? AND b = ?",
+                List.of("hello", 42));
+        String result = executor.substituteLiterals(query);
+        assertThat(result).isEqualTo("SELECT * FROM t WHERE a = 'hello' AND b = 42");
+    }
+
+    @Test
+    void substituteLiteralsShouldPreserveJsonPathQuestionMark() {
+        // JSON path syntax: '$.advisors[*]?(@.advisorId == $aid)' uses ? inside quotes
+        OracleJdbcQueryExecutor.SqlQuery query = new OracleJdbcQueryExecutor.SqlQuery(
+                "WHERE json_exists(b.data, '$.advisors[*]?(@.advisorId == $aid)' PASSING ? AS \"aid\")",
+                List.of("ADV001"));
+        String result = executor.substituteLiterals(query);
+        // The ? inside single quotes should be preserved, only the bind ? replaced
+        assertThat(result).contains("?(@.advisorId == $aid)");
+        assertThat(result).contains("'ADV001'");
+        assertThat(result).doesNotContain("PASSING ?");
+    }
+
+    @Test
+    void substituteLiteralsShouldEscapeSingleQuotesInStrings() {
+        OracleJdbcQueryExecutor.SqlQuery query = new OracleJdbcQueryExecutor.SqlQuery(
+                "SELECT * FROM t WHERE a = ?",
+                List.of("it's"));
+        String result = executor.substituteLiterals(query);
+        assertThat(result).isEqualTo("SELECT * FROM t WHERE a = 'it''s'");
+    }
+
+    @Test
+    void buildDisplaySqlShouldAppendBindValues() {
+        OracleJdbcQueryExecutor.SqlQuery query = new OracleJdbcQueryExecutor.SqlQuery(
+                "SELECT * FROM t WHERE a = ? AND b = ?",
+                List.of("hello", 42));
+        String result = executor.buildDisplaySql(query);
+        assertThat(result).contains("SELECT * FROM t WHERE a = ? AND b = ?");
+        assertThat(result).contains("-- Bind values:");
+        assertThat(result).contains("-- :1 = 'hello'");
+        assertThat(result).contains("-- :2 = 42");
+    }
+
+    @Test
+    void buildDisplaySqlShouldHandleEmptyParams() {
+        OracleJdbcQueryExecutor.SqlQuery query = new OracleJdbcQueryExecutor.SqlQuery(
+                "SELECT 1 FROM DUAL", List.of());
+        String result = executor.buildDisplaySql(query);
+        assertThat(result).isEqualTo("SELECT 1 FROM DUAL");
+        assertThat(result).doesNotContain("Bind values");
+    }
+
+    @Test
+    void addGatherStatsHintShouldInsertAfterSelect() {
+        String sql = "SELECT * FROM t WHERE a = 1";
+        String result = OracleJdbcQueryExecutor.addGatherStatsHint(sql);
+        assertThat(result).isEqualTo("SELECT /*+ GATHER_PLAN_STATISTICS */ * FROM t WHERE a = 1");
+    }
+
+    @Test
+    void addGatherStatsHintShouldHandleSubqueryWrapped() {
+        String sql = "SELECT * FROM (\n  SELECT jt.* FROM t b, JSON_TABLE(...) jt\n)";
+        String result = OracleJdbcQueryExecutor.addGatherStatsHint(sql);
+        assertThat(result).startsWith("SELECT /*+ GATHER_PLAN_STATISTICS */ * FROM");
     }
 
     private Map<String, Object> stubParams(QueryDefinition query) {

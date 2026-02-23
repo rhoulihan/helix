@@ -28,7 +28,16 @@ class ConnectionManagerTest {
     void shouldReturnMongoConnectionStringForNative() {
         ConnectionManager cm = new ConnectionManager(config);
         assertThat(cm.getMongoConnectionString(DatabaseTarget.MONGO_NATIVE))
-                .isEqualTo("mongodb://localhost:27017");
+                .isEqualTo("mongodb://localhost:27017/?replicaSet=rs0&w=1&journal=true");
+    }
+
+    @Test
+    void shouldReturnMongoConnectionStringForNativeWithWriteConcern() {
+        ConnectionManager cm = new ConnectionManager(config);
+        String connStr = cm.getMongoConnectionString(DatabaseTarget.MONGO_NATIVE);
+        assertThat(connStr).contains("w=1");
+        assertThat(connStr).contains("journal=true");
+        assertThat(connStr).contains("replicaSet=rs0");
     }
 
     @Test
@@ -49,6 +58,48 @@ class ConnectionManagerTest {
         ConnectionManager cm = new ConnectionManager(config);
         assertThatThrownBy(() -> cm.getMongoConnectionString(DatabaseTarget.ORACLE_JDBC))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void shouldThrowForMongoStringOnRelationalTarget() {
+        ConnectionManager cm = new ConnectionManager(config);
+        assertThatThrownBy(() -> cm.getMongoConnectionString(DatabaseTarget.ORACLE_RELATIONAL))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void shouldThrowForDatabaseNameOnRelationalTarget() {
+        ConnectionManager cm = new ConnectionManager(config);
+        assertThatThrownBy(() -> cm.getDatabaseName(DatabaseTarget.ORACLE_RELATIONAL))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void shouldThrowForMongoStringOnDualityViewTarget() {
+        ConnectionManager cm = new ConnectionManager(config);
+        assertThatThrownBy(() -> cm.getMongoConnectionString(DatabaseTarget.ORACLE_DUALITY_VIEW))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void shouldThrowForDatabaseNameOnDualityViewTarget() {
+        ConnectionManager cm = new ConnectionManager(config);
+        assertThatThrownBy(() -> cm.getDatabaseName(DatabaseTarget.ORACLE_DUALITY_VIEW))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void shouldReturnMongoConnectionStringForOracleMongoApiDv() {
+        ConnectionManager cm = new ConnectionManager(config);
+        assertThat(cm.getMongoConnectionString(DatabaseTarget.ORACLE_MONGO_API_DV))
+                .isEqualTo("mongodb://localhost:27018");
+    }
+
+    @Test
+    void shouldReturnDatabaseNameForOracleMongoApiDv() {
+        ConnectionManager cm = new ConnectionManager(config);
+        assertThat(cm.getDatabaseName(DatabaseTarget.ORACLE_MONGO_API_DV))
+                .isEqualTo("helix");
     }
 
     @Test

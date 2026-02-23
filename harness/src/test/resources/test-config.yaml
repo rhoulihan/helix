@@ -16,13 +16,14 @@ dataGeneration:
 
 connections:
   mongoNative:
-    uri: "mongodb://localhost:27017"
+    uri: "mongodb://localhost:27017/?replicaSet=rs0&w=1&journal=true"
     database: "helix"
   oracleJdbc:
     url: "jdbc:oracle:thin:@localhost:1521/helix"
     username: "ADMIN"
     password: "Welcome_12345!"
     maxPoolSize: 5
+    ordsBaseUrl: "https://localhost:8443/ords/admin"
   oracleMongoApi:
     uri: "mongodb://localhost:27018"
     database: "helix"

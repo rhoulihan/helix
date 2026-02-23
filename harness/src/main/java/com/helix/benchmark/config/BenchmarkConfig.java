@@ -5,6 +5,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Set;
 
 public class BenchmarkConfig {
     private final JsonNode root;
@@ -107,6 +111,23 @@ public class BenchmarkConfig {
 
     public String oracleMongoApiDatabase() {
         return root.path("connections").path("oracleMongoApi").path("database").asText("helix");
+    }
+
+    public String ordsBaseUrl() {
+        return root.path("connections").path("oracleJdbc").path("ordsBaseUrl")
+                .asText("https://localhost:8443/ords/admin");
+    }
+
+    public Set<DatabaseTarget> activeTargets() {
+        JsonNode node = root.path("benchmark").path("activeTargets");
+        if (node.isMissingNode() || !node.isArray() || node.isEmpty()) {
+            return EnumSet.allOf(DatabaseTarget.class);
+        }
+        Set<DatabaseTarget> targets = EnumSet.noneOf(DatabaseTarget.class);
+        for (JsonNode item : node) {
+            targets.add(DatabaseTarget.valueOf(item.asText()));
+        }
+        return targets;
     }
 
     public String configurationId(DatabaseTarget target, SchemaModel model) {

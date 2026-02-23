@@ -5,7 +5,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
-import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -159,94 +158,5 @@ class TestDataGeneratorTest {
         assertThat(doc.get("holdings")).isInstanceOf(List.class);
         assertThat(doc.get("entitlements")).isNotNull();
         assertThat(doc.get("advisorHierarchy")).isNotNull();
-    }
-
-    // --- Normalization transform ---
-
-    @Test
-    void shouldTransformToNormalizedModel() {
-        generator.generateAdvisors(3);
-        generator.generateBookRoleInvestors(5);
-        generator.generateBookRoleGroups(2);
-        List<Document> accounts = generator.generateAccounts(4);
-
-        Map<String, List<Document>> embedded = Map.of(
-                "advisor", generator.generateAdvisors(3),
-                "bookRoleInvestor", generator.generateBookRoleInvestors(5),
-                "bookRoleGroup", generator.generateBookRoleGroups(2),
-                "account", generator.generateAccounts(4)
-        );
-
-        List<Document> normalized = TestDataGenerator.transformToNormalized(embedded);
-        assertThat(normalized).hasSize(3 + 5 + 2 + 4);
-    }
-
-    @Test
-    void normalizedDocsShouldHaveTypeField() {
-        generator.generateAdvisors(2);
-        generator.generateBookRoleInvestors(2);
-        Map<String, List<Document>> embedded = Map.of(
-                "advisor", generator.generateAdvisors(2),
-                "bookRoleInvestor", generator.generateBookRoleInvestors(2),
-                "bookRoleGroup", List.of(),
-                "account", List.of()
-        );
-
-        List<Document> normalized = TestDataGenerator.transformToNormalized(embedded);
-        assertThat(normalized).allMatch(d -> d.containsKey("type"));
-    }
-
-    @Test
-    void normalizedAdvisorsShouldHaveAdvisorIdField() {
-        generator.generateAdvisors(2);
-        Map<String, List<Document>> embedded = Map.of(
-                "advisor", generator.generateAdvisors(2),
-                "bookRoleInvestor", List.of(),
-                "bookRoleGroup", List.of(),
-                "account", List.of()
-        );
-
-        List<Document> normalized = TestDataGenerator.transformToNormalized(embedded);
-        List<Document> advisors = normalized.stream()
-                .filter(d -> "Advisor".equals(d.getString("type")))
-                .toList();
-        assertThat(advisors).allMatch(d -> d.containsKey("advisorId"));
-    }
-
-    @Test
-    void normalizedInvestorsShouldHaveAdvisorIdsInsteadOfAdvisors() {
-        generator.generateAdvisors(3);
-        Map<String, List<Document>> embedded = Map.of(
-                "advisor", List.of(),
-                "bookRoleInvestor", generator.generateBookRoleInvestors(3),
-                "bookRoleGroup", List.of(),
-                "account", List.of()
-        );
-
-        List<Document> normalized = TestDataGenerator.transformToNormalized(embedded);
-        List<Document> investors = normalized.stream()
-                .filter(d -> "BookRoleInvestor".equals(d.getString("type")))
-                .toList();
-        assertThat(investors).allMatch(d -> d.containsKey("advisorIds"));
-        assertThat(investors).allMatch(d -> d.containsKey("advisorsMetadata"));
-        assertThat(investors).allMatch(d -> !d.containsKey("advisors"));
-    }
-
-    @Test
-    void normalizedGroupsShouldHaveInvestorIds() {
-        generator.generateAdvisors(3);
-        generator.generateBookRoleInvestors(5);
-        Map<String, List<Document>> embedded = Map.of(
-                "advisor", List.of(),
-                "bookRoleInvestor", List.of(),
-                "bookRoleGroup", generator.generateBookRoleGroups(2),
-                "account", List.of()
-        );
-
-        List<Document> normalized = TestDataGenerator.transformToNormalized(embedded);
-        List<Document> groups = normalized.stream()
-                .filter(d -> "BookRoleGroup".equals(d.getString("type")))
-                .toList();
-        assertThat(groups).allMatch(d -> d.containsKey("investorIds"));
     }
 }
