@@ -15,11 +15,6 @@ services:
       timeout: 5s
       retries: 10
       start_period: 10s
-    deploy:
-      resources:
-        limits:
-          memory: 4G
-          cpus: '2.0'
 
   oracle:
     image: container-registry.oracle.com/database/adb-free:latest-23ai
