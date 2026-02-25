@@ -407,16 +407,44 @@ Returns the top 50 investors for a specific advisor, sorted by viewable market v
 | `advisorId` | String | Random from generated advisors |
 
 **MongoDB pipeline:**
+```javascript
+[
+  { $match: {
+      advisors: { $elemMatch: { advisorId: "?", noOfViewableAccts: { $gte: 1 } } },
+      investorType: "Client",
+      viewableSource: "Y"
+  }},
+  { $addFields: {
+      advisors: {
+        $filter: {
+          input: "$advisors", as: "a",
+          cond: { $and: [
+            { $eq: ["$$a.advisorId", "?"] },
+            { $gte: ["$$a.noOfViewableAccts", 1] }
+          ]}
+        }
+      }
+  }},
+  { $unwind: "$advisors" },
+  { $match: {
+      "advisors.advisorId": "?",
+      "advisors.noOfViewableAccts": { $gte: 1 }
+  }},
+  { $project: {
+      _id: 1, investorFullName: 1, investorType: 1,
+      investorLastName: 1, investorFirstName: 1, investorMiddleName: 1,
+      investorCity: 1, investorState: 1, investorZipCode: 1, investorCountry: 1,
+      ssnTin: 1, partyRoleId: 1, partyId: 1, finInstId: 1, clientAccess: 1, ETLUpdateTS: 1,
+      advisorId: "$advisors.advisorId",
+      viewableMarketValue: "$advisors.viewableMarketValue",
+      noOfViewableAccts: "$advisors.noOfViewableAccts"
+  }},
+  { $sort: { viewableMarketValue: -1 } },
+  { $limit: 50 }
+]
 ```
-$match    → advisors $elemMatch {advisorId, noOfViewableAccts >= 1}
-             AND investorType = "Client" AND viewableSource = "Y"
-$addFields → $filter advisors array to matching advisor only
-$unwind   → $advisors
-$match    → advisors.advisorId = ? AND advisors.noOfViewableAccts >= 1
-$project  → 16 investor fields + 3 computed advisor fields
-$sort     → viewableMarketValue DESC
-$limit    → 50
-```
+
+**Note:** On MongoDB Native, a `$setWindowFields` stage computing `totalCount` is inserted before `$sort`. Oracle MongoDB API does not support `$setWindowFields`.
 
 **Oracle MongoDB API:** Same pipeline with `.hint({"advisors.advisorId": 1, "advisors.noOfViewableAccts": 1})` to force use of the compound advisor index (Oracle's optimizer would otherwise choose the less selective `investorType+viewableSource` index).
 
