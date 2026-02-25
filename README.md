@@ -769,7 +769,7 @@ docker compose up -d
 ```
 
 This launches:
-- **MongoDB 8.2** on port `27017` — WiredTiger cache 1.5 GB, replica set `rs0`
+- **MongoDB 8.2** on port `27017` — 4 GB memory limit, 2 CPUs, WiredTiger cache 1.5 GB, replica set `rs0`
 - **Oracle ADB-Free 23ai** on ports `1521` (JDBC/TLS), `8443` (ORDS REST), `27018` (MongoDB API)
 
 2. **Wait for Oracle to become healthy** (~5 minutes on first start):
