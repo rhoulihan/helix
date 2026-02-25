@@ -34,6 +34,8 @@ public class OracleSchemaManager implements SchemaManager {
                 CREATE INDEX idx_bri_inv_type ON jdbc_book_role_investor (
                     json_value(data, '$.investorType' RETURNING VARCHAR2(20)),
                     json_value(data, '$.viewableSource' RETURNING VARCHAR2(5)))""");
+        // Compound multivalue index must be created via MongoDB API:
+        // db.jdbc_book_role_investor.createIndex({"advisors.advisorId": 1, "advisors.noOfViewableAccts": 1})
         indexes.add("CREATE MULTIVALUE INDEX idx_bri_adv_id ON jdbc_book_role_investor b (b.data.advisors[*].advisorId.string())");
         indexes.add("CREATE MULTIVALUE INDEX idx_bri_adv_ctx ON jdbc_book_role_investor b (b.data.entitlements.advisoryContext[*].string())");
         indexes.add("CREATE MULTIVALUE INDEX idx_bri_party ON jdbc_book_role_investor b (b.data.entitlements.pxPartyRoleIdList[*].number())");

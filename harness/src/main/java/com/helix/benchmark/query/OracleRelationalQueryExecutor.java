@@ -23,6 +23,29 @@ public class OracleRelationalQueryExecutor extends OracleJdbcQueryExecutor {
         };
     }
 
+    // Common relational investor columns for Q1-Q4
+    private void appendRelInvestorColumns(StringBuilder sql) {
+        sql.append("  SELECT b.id AS \"_id\",\n");
+        sql.append("         b.party_role_id AS \"partyRoleId\",\n");
+        sql.append("         b.party_id AS \"partyId\",\n");
+        sql.append("         b.ssn_tin AS \"ssnTin\",\n");
+        sql.append("         b.fin_inst_id AS \"finInstId\",\n");
+        sql.append("         b.investor_type AS \"investorType\",\n");
+        sql.append("         b.investor_last_name AS \"investorLastName\",\n");
+        sql.append("         b.investor_first_name AS \"investorFirstName\",\n");
+        sql.append("         b.investor_middle_name AS \"investorMiddleName\",\n");
+        sql.append("         b.investor_full_name AS \"investorFullName\",\n");
+        sql.append("         b.investor_city AS \"investorCity\",\n");
+        sql.append("         b.investor_state AS \"investorState\",\n");
+        sql.append("         b.investor_zip_code AS \"investorZipCode\",\n");
+        sql.append("         b.client_access AS \"clientAccess\",\n");
+        sql.append("         b.etl_update_ts AS \"ETLUpdateTS\",\n");
+        sql.append("         a.advisor_id AS \"advisorId\",\n");
+        sql.append("         a.viewable_mv AS \"viewableMarketValue\",\n");
+        sql.append("         a.no_of_viewable_accts AS \"noOfViewableAccts\",\n");
+        sql.append("         COUNT(*) OVER () AS \"totalCount\"\n");
+    }
+
     // --- Q1: BookRoleInvestor - Investor list by advisor ---
     private SqlQuery buildRelQ1(Map<String, Object> params) {
         String advisorId = (String) params.get("advisorId");
@@ -30,12 +53,7 @@ public class OracleRelationalQueryExecutor extends OracleJdbcQueryExecutor {
         List<Object> p = new ArrayList<>();
         StringBuilder sql = new StringBuilder();
         sql.append("SELECT * FROM (\n");
-        sql.append("  SELECT b.id, b.investor_full_name, b.investor_type,\n");
-        sql.append("         b.investor_last_name, b.investor_first_name, b.investor_middle_name,\n");
-        sql.append("         b.investor_city, b.investor_state, b.investor_zip_code, b.ssn_tin,\n");
-        sql.append("         b.party_role_id, b.party_id, b.fin_inst_id, b.client_access, b.etl_update_ts,\n");
-        sql.append("         a.advisor_id, a.viewable_mv, a.no_of_viewable_accts,\n");
-        sql.append("         COUNT(*) OVER () AS total_count\n");
+        appendRelInvestorColumns(sql);
         sql.append("  FROM rel_book_role_investor b\n");
         sql.append("  JOIN rel_bri_advisors a ON a.investor_id = b.id\n");
         sql.append("  WHERE a.advisor_id = ?\n");
@@ -59,12 +77,7 @@ public class OracleRelationalQueryExecutor extends OracleJdbcQueryExecutor {
         List<Object> p = new ArrayList<>();
         StringBuilder sql = new StringBuilder();
         sql.append("SELECT * FROM (\n");
-        sql.append("  SELECT b.id, b.investor_full_name, b.investor_type,\n");
-        sql.append("         b.investor_last_name, b.investor_first_name, b.investor_middle_name,\n");
-        sql.append("         b.investor_city, b.investor_state, b.investor_zip_code, b.ssn_tin,\n");
-        sql.append("         b.party_role_id, b.party_id, b.fin_inst_id, b.client_access, b.etl_update_ts,\n");
-        sql.append("         a.advisor_id, a.viewable_mv, a.no_of_viewable_accts,\n");
-        sql.append("         COUNT(*) OVER () AS total_count\n");
+        appendRelInvestorColumns(sql);
         sql.append("  FROM rel_book_role_investor b\n");
         sql.append("  JOIN rel_bri_advisors a ON a.investor_id = b.id\n");
         sql.append("  WHERE a.advisor_id = ?\n");
@@ -92,12 +105,7 @@ public class OracleRelationalQueryExecutor extends OracleJdbcQueryExecutor {
         List<Object> p = new ArrayList<>();
         StringBuilder sql = new StringBuilder();
         sql.append("SELECT * FROM (\n");
-        sql.append("  SELECT b.id, b.investor_full_name, b.investor_type,\n");
-        sql.append("         b.investor_last_name, b.investor_first_name, b.investor_middle_name,\n");
-        sql.append("         b.investor_city, b.investor_state, b.investor_zip_code, b.ssn_tin,\n");
-        sql.append("         b.party_role_id, b.party_id, b.fin_inst_id, b.client_access, b.etl_update_ts,\n");
-        sql.append("         a.advisor_id, a.viewable_mv, a.no_of_viewable_accts,\n");
-        sql.append("         COUNT(*) OVER () AS total_count\n");
+        appendRelInvestorColumns(sql);
         sql.append("  FROM rel_book_role_investor b\n");
         sql.append("  JOIN rel_bri_advisors a ON a.investor_id = b.id\n");
         sql.append("  WHERE a.advisor_id = ?\n");
@@ -125,12 +133,7 @@ public class OracleRelationalQueryExecutor extends OracleJdbcQueryExecutor {
         List<Object> p = new ArrayList<>();
         StringBuilder sql = new StringBuilder();
         sql.append("SELECT * FROM (\n");
-        sql.append("  SELECT b.id, b.investor_full_name, b.investor_type,\n");
-        sql.append("         b.investor_last_name, b.investor_first_name, b.investor_middle_name,\n");
-        sql.append("         b.investor_city, b.investor_state, b.investor_zip_code, b.ssn_tin,\n");
-        sql.append("         b.party_role_id, b.party_id, b.fin_inst_id, b.client_access, b.etl_update_ts,\n");
-        sql.append("         a.advisor_id, a.viewable_mv, a.no_of_viewable_accts,\n");
-        sql.append("         COUNT(*) OVER () AS total_count\n");
+        appendRelInvestorColumns(sql);
         sql.append("  FROM rel_book_role_investor b\n");
         sql.append("  JOIN rel_bri_advisors a ON a.investor_id = b.id\n");
         sql.append("  WHERE a.advisor_id = ?\n");

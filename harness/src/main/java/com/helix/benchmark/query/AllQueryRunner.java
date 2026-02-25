@@ -21,8 +21,7 @@ import java.sql.ResultSet;
 import java.util.*;
 
 /**
- * Runs all 9 queries on MongoDB, Oracle Relational, Oracle Duality View,
- * and Oracle Mongo API (DV), displaying actual results for comparison.
+ * Runs all 9 queries on all 6 database targets, displaying actual results for comparison.
  */
 public class AllQueryRunner {
     private static final ObjectMapper mapper = new ObjectMapper();
@@ -49,11 +48,17 @@ public class AllQueryRunner {
         QueryParameterGenerator paramGen = new QueryParameterGenerator(registry);
 
         MongoQueryExecutor mongoExec = new MongoQueryExecutor();
+        OracleJdbcQueryExecutor oracleJdbcExec = new OracleJdbcQueryExecutor();
         OracleRelationalQueryExecutor relExec = new OracleRelationalQueryExecutor();
         OracleDualityViewQueryExecutor dvExec = new OracleDualityViewQueryExecutor();
 
         String mongoConnStr = connMgr.getMongoConnectionString(DatabaseTarget.MONGO_NATIVE);
         String mongoDbName = connMgr.getDatabaseName(DatabaseTarget.MONGO_NATIVE);
+
+        // Pre-sample parameters from actual data
+        try (MongoClient initClient = MongoClients.create(mongoConnStr)) {
+            paramGen.initFromData(initClient.getDatabase(mongoDbName), 50);
+        }
         HikariDataSource ds = createDs(connMgr);
 
         // Build targeted params from actual data so queries return non-empty results
@@ -72,11 +77,11 @@ public class AllQueryRunner {
             System.out.println(LINE);
 
             if (query.isAggregation()) {
-                boolean ok = runAggregation(query, params, mongoExec, relExec, dvExec,
+                boolean ok = runAggregation(query, params, mongoExec, oracleJdbcExec, relExec, dvExec,
                         mongoConnStr, mongoDbName, ds, connMgr);
                 if (ok) totalMatch++; else totalFail++;
             } else {
-                boolean ok = runFind(query, params, mongoExec, relExec, dvExec,
+                boolean ok = runFind(query, params, mongoExec, oracleJdbcExec, relExec, dvExec,
                         mongoConnStr, mongoDbName, ds, connMgr);
                 if (ok) totalMatch++; else totalFail++;
             }
@@ -84,7 +89,7 @@ public class AllQueryRunner {
 
         System.out.println();
         System.out.println(LINE);
-        System.out.printf("  OVERALL: %d/%d queries matched across all 4 targets%n",
+        System.out.printf("  OVERALL: %d/%d queries matched across all 6 targets%n",
                 totalMatch, totalMatch + totalFail);
         if (totalFail > 0) {
             System.out.printf("  WARNING: %d queries had mismatches!%n", totalFail);
@@ -98,14 +103,16 @@ public class AllQueryRunner {
 
     private static boolean runAggregation(QueryDefinition query, Map<String, Object> params,
                                            MongoQueryExecutor mongoExec,
+                                           OracleJdbcQueryExecutor oracleJdbcExec,
                                            OracleRelationalQueryExecutor relExec,
                                            OracleDualityViewQueryExecutor dvExec,
                                            String mongoConnStr, String mongoDbName,
                                            HikariDataSource ds,
                                            ConnectionManager connMgr) throws Exception {
-        // --- MongoDB ---
-        List<String[]> mongoRows;
+        Map<String, List<String[]>> results = new LinkedHashMap<>();
         long t0, elapsed;
+
+        // --- MongoDB Native ---
         try (MongoClient client = MongoClients.create(mongoConnStr)) {
             MongoDatabase db = client.getDatabase(mongoDbName);
             MongoCollection<Document> col = db.getCollection(query.embeddedCollection());
@@ -114,123 +121,212 @@ public class AllQueryRunner {
             t0 = System.nanoTime();
             List<Document> docs = col.aggregate(pipeline).into(new ArrayList<>());
             elapsed = System.nanoTime() - t0;
-            mongoRows = new ArrayList<>();
+            List<String[]> rows = new ArrayList<>();
             for (Document doc : docs) {
                 String aid = doc.getString("advisorId");
                 Number mv = doc.get("viewableMarketValue") instanceof Number n ? n : 0.0;
                 Number accts = doc.get("noOfViewableAccts") instanceof Number n ? n : 0;
-                mongoRows.add(new String[]{aid != null ? aid : "null", fmtMv(mv), fmtInt(accts)});
+                rows.add(new String[]{aid != null ? aid : "null", fmtMv(mv), fmtInt(accts)});
             }
+            results.put("MongoDB Native", rows);
         }
         printTarget("MongoDB Native", elapsed);
         printAggHeader();
-        for (int i = 0; i < mongoRows.size(); i++) printAggRow(i + 1, mongoRows.get(i));
-        System.out.printf("  → %d rows%n%n", mongoRows.size());
+        for (int i = 0; i < results.get("MongoDB Native").size(); i++)
+            printAggRow(i + 1, results.get("MongoDB Native").get(i));
+        System.out.printf("  -> %d rows%n%n", results.get("MongoDB Native").size());
+
+        // --- Oracle JDBC (SODA JSON) ---
+        {
+            OracleJdbcQueryExecutor.SqlQuery sqlQuery = oracleJdbcExec.buildSql(query, SchemaModel.EMBEDDED, params);
+            List<String[]> rows = new ArrayList<>();
+            try (Connection conn = ds.getConnection();
+                 var ps = conn.prepareStatement(sqlQuery.sql())) {
+                bindParams(ps, sqlQuery.parameters());
+                t0 = System.nanoTime();
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        rows.add(new String[]{
+                                rs.getString("advisorId"),
+                                fmtMv(rs.getDouble("viewableMarketValue")),
+                                fmtInt(rs.getInt("noOfViewableAccts"))
+                        });
+                    }
+                }
+                elapsed = System.nanoTime() - t0;
+            }
+            results.put("Oracle JDBC", rows);
+            printTarget("Oracle JDBC", elapsed);
+            printAggHeader();
+            for (int i = 0; i < rows.size(); i++) printAggRow(i + 1, rows.get(i));
+            System.out.printf("  -> %d rows%n%n", rows.size());
+        }
+
+        // --- Oracle MongoDB API (non-DV) ---
+        {
+            String apiConnStr = connMgr.getMongoConnectionString(DatabaseTarget.ORACLE_MONGO_API);
+            String apiDbName = connMgr.getDatabaseName(DatabaseTarget.ORACLE_MONGO_API);
+            try (MongoClient client = MongoClients.create(apiConnStr)) {
+                MongoDatabase db = client.getDatabase(apiDbName);
+                String collName = mongoExec.getCollectionName(query, SchemaModel.EMBEDDED, DatabaseTarget.ORACLE_MONGO_API);
+                MongoCollection<Document> col = db.getCollection(collName);
+                var pipeline = mongoExec.buildAggregationPipeline(query, SchemaModel.EMBEDDED,
+                        params, DatabaseTarget.ORACLE_MONGO_API);
+                t0 = System.nanoTime();
+                List<Document> docs = col.aggregate(pipeline).into(new ArrayList<>());
+                elapsed = System.nanoTime() - t0;
+                List<String[]> rows = new ArrayList<>();
+                for (Document doc : docs) {
+                    String aid = doc.getString("advisorId");
+                    Number mv = doc.get("viewableMarketValue") instanceof Number n ? n : 0.0;
+                    Number accts = doc.get("noOfViewableAccts") instanceof Number n ? n : 0;
+                    rows.add(new String[]{aid != null ? aid : "null", fmtMv(mv), fmtInt(accts)});
+                }
+                results.put("Oracle MongoDB API", rows);
+            }
+            printTarget("Oracle MongoDB API", elapsed);
+            printAggHeader();
+            for (int i = 0; i < results.get("Oracle MongoDB API").size(); i++)
+                printAggRow(i + 1, results.get("Oracle MongoDB API").get(i));
+            System.out.printf("  -> %d rows%n%n", results.get("Oracle MongoDB API").size());
+        }
 
         // --- Oracle Relational ---
-        OracleJdbcQueryExecutor.SqlQuery relSql = relExec.buildSql(query, SchemaModel.EMBEDDED, params);
-        List<String[]> relRows = new ArrayList<>();
-        try (Connection conn = ds.getConnection();
-             var ps = conn.prepareStatement(relSql.sql())) {
-            bindParams(ps, relSql.parameters());
-            t0 = System.nanoTime();
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    relRows.add(new String[]{
-                            rs.getString("advisor_id"),
-                            fmtMv(rs.getDouble("viewable_mv")),
-                            fmtInt(rs.getInt("no_of_viewable_accts"))
-                    });
+        {
+            OracleJdbcQueryExecutor.SqlQuery relSql = relExec.buildSql(query, SchemaModel.EMBEDDED, params);
+            List<String[]> rows = new ArrayList<>();
+            try (Connection conn = ds.getConnection();
+                 var ps = conn.prepareStatement(relSql.sql())) {
+                bindParams(ps, relSql.parameters());
+                t0 = System.nanoTime();
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        rows.add(new String[]{
+                                rs.getString("advisorId"),
+                                fmtMv(rs.getDouble("viewableMarketValue")),
+                                fmtInt(rs.getInt("noOfViewableAccts"))
+                        });
+                    }
                 }
+                elapsed = System.nanoTime() - t0;
             }
-            elapsed = System.nanoTime() - t0;
+            results.put("Oracle Relational", rows);
+            printTarget("Oracle Relational", elapsed);
+            printAggHeader();
+            for (int i = 0; i < rows.size(); i++) printAggRow(i + 1, rows.get(i));
+            System.out.printf("  -> %d rows%n%n", rows.size());
         }
-        printTarget("Oracle Relational", elapsed);
-        printAggHeader();
-        for (int i = 0; i < relRows.size(); i++) printAggRow(i + 1, relRows.get(i));
-        System.out.printf("  → %d rows%n%n", relRows.size());
 
         // --- Oracle Duality View ---
-        OracleJdbcQueryExecutor.SqlQuery dvSql = dvExec.buildSql(query, SchemaModel.EMBEDDED, params);
-        List<String[]> dvRows = new ArrayList<>();
-        try (Connection conn = ds.getConnection();
-             var ps = conn.prepareStatement(dvSql.sql())) {
-            bindParams(ps, dvSql.parameters());
-            t0 = System.nanoTime();
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    dvRows.add(new String[]{
-                            rs.getString("advisor_id"),
-                            fmtMv(rs.getDouble("viewable_mv")),
-                            fmtInt(rs.getInt("no_of_viewable_accts"))
-                    });
+        {
+            OracleJdbcQueryExecutor.SqlQuery dvSql = dvExec.buildSql(query, SchemaModel.EMBEDDED, params);
+            List<String[]> rows = new ArrayList<>();
+            try (Connection conn = ds.getConnection();
+                 var ps = conn.prepareStatement(dvSql.sql())) {
+                bindParams(ps, dvSql.parameters());
+                t0 = System.nanoTime();
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        rows.add(new String[]{
+                                rs.getString("advisorId"),
+                                fmtMv(rs.getDouble("viewableMarketValue")),
+                                fmtInt(rs.getInt("noOfViewableAccts"))
+                        });
+                    }
                 }
+                elapsed = System.nanoTime() - t0;
             }
-            elapsed = System.nanoTime() - t0;
+            results.put("Oracle Duality View", rows);
+            printTarget("Oracle Duality View", elapsed);
+            printAggHeader();
+            for (int i = 0; i < rows.size(); i++) printAggRow(i + 1, rows.get(i));
+            System.out.printf("  -> %d rows%n%n", rows.size());
         }
-        printTarget("Oracle Duality View", elapsed);
-        printAggHeader();
-        for (int i = 0; i < dvRows.size(); i++) printAggRow(i + 1, dvRows.get(i));
-        System.out.printf("  → %d rows%n%n", dvRows.size());
 
         // --- Oracle Mongo API (DV) ---
-        String dvMongoConnStr = connMgr.getMongoConnectionString(DatabaseTarget.ORACLE_MONGO_API_DV);
-        String dvMongoDbName = connMgr.getDatabaseName(DatabaseTarget.ORACLE_MONGO_API_DV);
-        List<String[]> dvMongoRows;
-        try (MongoClient client = MongoClients.create(dvMongoConnStr)) {
-            MongoDatabase db = client.getDatabase(dvMongoDbName);
-            String collName = mongoExec.getCollectionName(query, SchemaModel.EMBEDDED, DatabaseTarget.ORACLE_MONGO_API_DV);
-            MongoCollection<Document> col = db.getCollection(collName);
-            var pipeline = mongoExec.buildAggregationPipeline(query, SchemaModel.EMBEDDED,
-                    params, DatabaseTarget.ORACLE_MONGO_API_DV);
-            t0 = System.nanoTime();
-            List<Document> docs = col.aggregate(pipeline).into(new ArrayList<>());
-            elapsed = System.nanoTime() - t0;
-            dvMongoRows = new ArrayList<>();
-            for (Document doc : docs) {
-                String aid = doc.getString("advisorId");
-                Number mv = doc.get("viewableMarketValue") instanceof Number n ? n : 0.0;
-                Number accts = doc.get("noOfViewableAccts") instanceof Number n ? n : 0;
-                dvMongoRows.add(new String[]{aid != null ? aid : "null", fmtMv(mv), fmtInt(accts)});
+        {
+            String dvMongoConnStr = connMgr.getMongoConnectionString(DatabaseTarget.ORACLE_MONGO_API_DV);
+            String dvMongoDbName = connMgr.getDatabaseName(DatabaseTarget.ORACLE_MONGO_API_DV);
+            try (MongoClient client = MongoClients.create(dvMongoConnStr)) {
+                MongoDatabase db = client.getDatabase(dvMongoDbName);
+                String collName = mongoExec.getCollectionName(query, SchemaModel.EMBEDDED, DatabaseTarget.ORACLE_MONGO_API_DV);
+                MongoCollection<Document> col = db.getCollection(collName);
+                var pipeline = mongoExec.buildAggregationPipeline(query, SchemaModel.EMBEDDED,
+                        params, DatabaseTarget.ORACLE_MONGO_API_DV);
+                t0 = System.nanoTime();
+                List<Document> docs = col.aggregate(pipeline).into(new ArrayList<>());
+                elapsed = System.nanoTime() - t0;
+                List<String[]> rows = new ArrayList<>();
+                for (Document doc : docs) {
+                    String aid = doc.getString("advisorId");
+                    Number mv = doc.get("viewableMarketValue") instanceof Number n ? n : 0.0;
+                    Number accts = doc.get("noOfViewableAccts") instanceof Number n ? n : 0;
+                    rows.add(new String[]{aid != null ? aid : "null", fmtMv(mv), fmtInt(accts)});
+                }
+                results.put("Oracle Mongo API (DV)", rows);
             }
+            printTarget("Oracle Mongo API (DV)", elapsed);
+            printAggHeader();
+            for (int i = 0; i < results.get("Oracle Mongo API (DV)").size(); i++)
+                printAggRow(i + 1, results.get("Oracle Mongo API (DV)").get(i));
+            System.out.printf("  -> %d rows%n%n", results.get("Oracle Mongo API (DV)").size());
         }
-        printTarget("Oracle Mongo API (DV)", elapsed);
-        printAggHeader();
-        for (int i = 0; i < dvMongoRows.size(); i++) printAggRow(i + 1, dvMongoRows.get(i));
-        System.out.printf("  → %d rows%n%n", dvMongoRows.size());
 
         // Compare
-        return compareAgg(query, mongoRows, relRows, dvRows, dvMongoRows);
+        return compareAgg(results);
     }
 
-    private static boolean compareAgg(QueryDefinition query, List<String[]> mongo,
-                                       List<String[]> rel, List<String[]> dv,
-                                       List<String[]> dvMongo) {
+    private static boolean compareAgg(Map<String, List<String[]>> results) {
+        var entries = new ArrayList<>(results.entrySet());
+        List<String[]> baseline = entries.get(0).getValue();
         boolean ok = true;
-        if (mongo.size() != rel.size() || mongo.size() != dv.size() || mongo.size() != dvMongo.size()) {
-            System.out.printf("  ✗ Row count mismatch: Mongo=%d, Rel=%d, DV=%d, DV-Mongo=%d%n",
-                    mongo.size(), rel.size(), dv.size(), dvMongo.size());
+
+        // Check sizes
+        boolean sizeMismatch = false;
+        for (int i = 1; i < entries.size(); i++) {
+            if (entries.get(i).getValue().size() != baseline.size()) {
+                sizeMismatch = true;
+                break;
+            }
+        }
+        if (sizeMismatch) {
+            StringBuilder msg = new StringBuilder();
+            for (var entry : entries) {
+                if (!msg.isEmpty()) msg.append(", ");
+                msg.append(entry.getKey()).append("=").append(entry.getValue().size());
+            }
+            System.out.printf("  X Row count mismatch: %s%n", msg);
             ok = false;
         }
-        int max = Math.min(mongo.size(), Math.min(rel.size(), Math.min(dv.size(), dvMongo.size())));
+
+        // Row-by-row
+        int minSize = entries.stream().mapToInt(e -> e.getValue().size()).min().orElse(0);
         int mismatches = 0;
-        for (int i = 0; i < max; i++) {
-            if (!mongo.get(i)[0].equals(rel.get(i)[0]) || !mongo.get(i)[0].equals(dv.get(i)[0])
-                    || !mongo.get(i)[0].equals(dvMongo.get(i)[0])
-                    || !mongo.get(i)[1].equals(rel.get(i)[1]) || !mongo.get(i)[1].equals(dv.get(i)[1])
-                    || !mongo.get(i)[1].equals(dvMongo.get(i)[1])) {
+        for (int i = 0; i < minSize; i++) {
+            boolean rowOk = true;
+            for (int j = 1; j < entries.size(); j++) {
+                if (!entries.get(0).getValue().get(i)[0].equals(entries.get(j).getValue().get(i)[0])
+                        || !entries.get(0).getValue().get(i)[1].equals(entries.get(j).getValue().get(i)[1])) {
+                    rowOk = false;
+                    break;
+                }
+            }
+            if (!rowOk) {
                 if (mismatches < 3) {
-                    System.out.printf("  ✗ Row %d: Mongo=[%s,%s] Rel=[%s,%s] DV=[%s,%s] DV-Mongo=[%s,%s]%n",
-                            i + 1, mongo.get(i)[0], mongo.get(i)[1],
-                            rel.get(i)[0], rel.get(i)[1], dv.get(i)[0], dv.get(i)[1],
-                            dvMongo.get(i)[0], dvMongo.get(i)[1]);
+                    StringBuilder msg = new StringBuilder();
+                    for (var entry : entries) {
+                        String[] row = entry.getValue().get(i);
+                        msg.append(entry.getKey()).append("=[").append(row[0]).append(",").append(row[1]).append("] ");
+                    }
+                    System.out.printf("  X Row %d: %s%n", i + 1, msg);
                 }
                 mismatches++;
                 ok = false;
             }
         }
         if (ok) {
-            System.out.printf("  MATCH — %d rows identical across all 4 targets%n", mongo.size());
+            System.out.printf("  MATCH — %d rows identical across all %d targets%n",
+                    baseline.size(), entries.size());
         } else if (mismatches > 3) {
             System.out.printf("  ... and %d more mismatches%n", mismatches - 3);
         }
@@ -241,121 +337,188 @@ public class AllQueryRunner {
 
     private static boolean runFind(QueryDefinition query, Map<String, Object> params,
                                     MongoQueryExecutor mongoExec,
+                                    OracleJdbcQueryExecutor oracleJdbcExec,
                                     OracleRelationalQueryExecutor relExec,
                                     OracleDualityViewQueryExecutor dvExec,
                                     String mongoConnStr, String mongoDbName,
                                     HikariDataSource ds,
                                     ConnectionManager connMgr) throws Exception {
-        // --- MongoDB ---
-        Set<String> mongoIds;
+        Map<String, Set<String>> results = new LinkedHashMap<>();
         long t0, elapsed;
+
+        // --- MongoDB Native ---
         try (MongoClient client = MongoClients.create(mongoConnStr)) {
             MongoDatabase db = client.getDatabase(mongoDbName);
             MongoCollection<Document> col = db.getCollection(query.embeddedCollection());
-            var filter = mongoExec.buildFindFilter(query, SchemaModel.EMBEDDED, params);
+            var filter = mongoExec.buildFindFilter(query, SchemaModel.EMBEDDED, params, DatabaseTarget.MONGO_NATIVE);
             t0 = System.nanoTime();
             List<Document> docs = col.find(filter).into(new ArrayList<>());
             elapsed = System.nanoTime() - t0;
-            mongoIds = new TreeSet<>();
-            for (Document doc : docs) {
-                mongoIds.add(doc.getString("_id"));
-            }
+            Set<String> ids = new TreeSet<>();
+            for (Document doc : docs) ids.add(doc.getString("_id"));
+            results.put("MongoDB Native", ids);
         }
         printTarget("MongoDB Native", elapsed);
-        printIds("  IDs", mongoIds, 10);
-        System.out.printf("  → %d documents%n%n", mongoIds.size());
+        printIds("  IDs", results.get("MongoDB Native"), 10);
+        System.out.printf("  -> %d documents%n%n", results.get("MongoDB Native").size());
+
+        // --- Oracle JDBC (SODA JSON) ---
+        {
+            OracleJdbcQueryExecutor.SqlQuery sqlQuery = oracleJdbcExec.buildSql(query, SchemaModel.EMBEDDED, params);
+            Set<String> ids = new TreeSet<>();
+            try (Connection conn = ds.getConnection();
+                 var ps = conn.prepareStatement(sqlQuery.sql())) {
+                bindParams(ps, sqlQuery.parameters());
+                t0 = System.nanoTime();
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        String json = rs.getString(1);
+                        if (json != null) {
+                            JsonNode node = mapper.readTree(json);
+                            JsonNode idNode = node.get("_id");
+                            if (idNode != null) ids.add(idNode.asText());
+                        }
+                    }
+                }
+                elapsed = System.nanoTime() - t0;
+            }
+            results.put("Oracle JDBC", ids);
+            printTarget("Oracle JDBC", elapsed);
+            printIds("  IDs", ids, 10);
+            System.out.printf("  -> %d rows%n%n", ids.size());
+        }
+
+        // --- Oracle MongoDB API (non-DV) ---
+        {
+            String apiConnStr = connMgr.getMongoConnectionString(DatabaseTarget.ORACLE_MONGO_API);
+            String apiDbName = connMgr.getDatabaseName(DatabaseTarget.ORACLE_MONGO_API);
+            try (MongoClient client = MongoClients.create(apiConnStr)) {
+                MongoDatabase db = client.getDatabase(apiDbName);
+                String collName = mongoExec.getCollectionName(query, SchemaModel.EMBEDDED, DatabaseTarget.ORACLE_MONGO_API);
+                MongoCollection<Document> col = db.getCollection(collName);
+                var filter = mongoExec.buildFindFilter(query, SchemaModel.EMBEDDED, params, DatabaseTarget.ORACLE_MONGO_API);
+                t0 = System.nanoTime();
+                List<Document> docs = col.find(filter).into(new ArrayList<>());
+                elapsed = System.nanoTime() - t0;
+                Set<String> ids = new TreeSet<>();
+                for (Document doc : docs) ids.add(doc.getString("_id"));
+                results.put("Oracle MongoDB API", ids);
+            }
+            printTarget("Oracle MongoDB API", elapsed);
+            printIds("  IDs", results.get("Oracle MongoDB API"), 10);
+            System.out.printf("  -> %d documents%n%n", results.get("Oracle MongoDB API").size());
+        }
 
         // --- Oracle Relational ---
-        OracleJdbcQueryExecutor.SqlQuery relSql = relExec.buildSql(query, SchemaModel.EMBEDDED, params);
-        Set<String> relIds = new TreeSet<>();
-        try (Connection conn = ds.getConnection();
-             var ps = conn.prepareStatement(relSql.sql())) {
-            bindParams(ps, relSql.parameters());
-            t0 = System.nanoTime();
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    String json = rs.getString(1);
-                    if (json != null) {
-                        JsonNode node = mapper.readTree(json);
-                        JsonNode idNode = node.get("_id");
-                        if (idNode != null) relIds.add(idNode.asText());
+        {
+            OracleJdbcQueryExecutor.SqlQuery relSql = relExec.buildSql(query, SchemaModel.EMBEDDED, params);
+            Set<String> ids = new TreeSet<>();
+            try (Connection conn = ds.getConnection();
+                 var ps = conn.prepareStatement(relSql.sql())) {
+                bindParams(ps, relSql.parameters());
+                t0 = System.nanoTime();
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        String json = rs.getString(1);
+                        if (json != null) {
+                            JsonNode node = mapper.readTree(json);
+                            JsonNode idNode = node.get("_id");
+                            if (idNode != null) ids.add(idNode.asText());
+                        }
                     }
                 }
+                elapsed = System.nanoTime() - t0;
             }
-            elapsed = System.nanoTime() - t0;
+            results.put("Oracle Relational", ids);
+            printTarget("Oracle Relational", elapsed);
+            printIds("  IDs", ids, 10);
+            System.out.printf("  -> %d rows%n%n", ids.size());
         }
-        printTarget("Oracle Relational", elapsed);
-        printIds("  IDs", relIds, 10);
-        System.out.printf("  → %d rows%n%n", relIds.size());
 
         // --- Oracle Duality View ---
-        OracleJdbcQueryExecutor.SqlQuery dvSql = dvExec.buildSql(query, SchemaModel.EMBEDDED, params);
-        Set<String> dvIds = new TreeSet<>();
-        try (Connection conn = ds.getConnection();
-             var ps = conn.prepareStatement(dvSql.sql())) {
-            bindParams(ps, dvSql.parameters());
-            t0 = System.nanoTime();
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    String json = rs.getString(1);
-                    if (json != null) {
-                        JsonNode node = mapper.readTree(json);
-                        JsonNode idNode = node.get("_id");
-                        if (idNode != null) dvIds.add(idNode.asText());
+        {
+            OracleJdbcQueryExecutor.SqlQuery dvSql = dvExec.buildSql(query, SchemaModel.EMBEDDED, params);
+            Set<String> ids = new TreeSet<>();
+            try (Connection conn = ds.getConnection();
+                 var ps = conn.prepareStatement(dvSql.sql())) {
+                bindParams(ps, dvSql.parameters());
+                t0 = System.nanoTime();
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        String json = rs.getString(1);
+                        if (json != null) {
+                            JsonNode node = mapper.readTree(json);
+                            JsonNode idNode = node.get("_id");
+                            if (idNode != null) ids.add(idNode.asText());
+                        }
                     }
                 }
+                elapsed = System.nanoTime() - t0;
             }
-            elapsed = System.nanoTime() - t0;
+            results.put("Oracle Duality View", ids);
+            printTarget("Oracle Duality View", elapsed);
+            printIds("  IDs", ids, 10);
+            System.out.printf("  -> %d documents%n%n", ids.size());
         }
-        printTarget("Oracle Duality View", elapsed);
-        printIds("  IDs", dvIds, 10);
-        System.out.printf("  → %d documents%n%n", dvIds.size());
 
         // --- Oracle Mongo API (DV) ---
-        String dvMongoConnStr = connMgr.getMongoConnectionString(DatabaseTarget.ORACLE_MONGO_API_DV);
-        String dvMongoDbName = connMgr.getDatabaseName(DatabaseTarget.ORACLE_MONGO_API_DV);
-        Set<String> dvMongoIds;
-        try (MongoClient client = MongoClients.create(dvMongoConnStr)) {
-            MongoDatabase db = client.getDatabase(dvMongoDbName);
-            String collName = mongoExec.getCollectionName(query, SchemaModel.EMBEDDED, DatabaseTarget.ORACLE_MONGO_API_DV);
-            MongoCollection<Document> col = db.getCollection(collName);
-            var filter = mongoExec.buildFindFilter(query, SchemaModel.EMBEDDED, params);
-            t0 = System.nanoTime();
-            List<Document> docs = col.find(filter).into(new ArrayList<>());
-            elapsed = System.nanoTime() - t0;
-            dvMongoIds = new TreeSet<>();
-            for (Document doc : docs) {
-                dvMongoIds.add(doc.getString("_id"));
+        {
+            String dvMongoConnStr = connMgr.getMongoConnectionString(DatabaseTarget.ORACLE_MONGO_API_DV);
+            String dvMongoDbName = connMgr.getDatabaseName(DatabaseTarget.ORACLE_MONGO_API_DV);
+            try (MongoClient client = MongoClients.create(dvMongoConnStr)) {
+                MongoDatabase db = client.getDatabase(dvMongoDbName);
+                String collName = mongoExec.getCollectionName(query, SchemaModel.EMBEDDED, DatabaseTarget.ORACLE_MONGO_API_DV);
+                MongoCollection<Document> col = db.getCollection(collName);
+                var filter = mongoExec.buildFindFilter(query, SchemaModel.EMBEDDED, params, DatabaseTarget.ORACLE_MONGO_API_DV);
+                t0 = System.nanoTime();
+                List<Document> docs = col.find(filter).into(new ArrayList<>());
+                elapsed = System.nanoTime() - t0;
+                Set<String> ids = new TreeSet<>();
+                for (Document doc : docs) ids.add(doc.getString("_id"));
+                results.put("Oracle Mongo API (DV)", ids);
             }
+            printTarget("Oracle Mongo API (DV)", elapsed);
+            printIds("  IDs", results.get("Oracle Mongo API (DV)"), 10);
+            System.out.printf("  -> %d documents%n%n", results.get("Oracle Mongo API (DV)").size());
         }
-        printTarget("Oracle Mongo API (DV)", elapsed);
-        printIds("  IDs", dvMongoIds, 10);
-        System.out.printf("  → %d documents%n%n", dvMongoIds.size());
 
         // Compare
-        return compareFind(query, mongoIds, relIds, dvIds, dvMongoIds);
+        return compareFind(results);
     }
 
-    private static boolean compareFind(QueryDefinition query, Set<String> mongo,
-                                        Set<String> rel, Set<String> dv, Set<String> dvMongo) {
-        boolean ok = mongo.equals(rel) && mongo.equals(dv) && mongo.equals(dvMongo);
+    private static boolean compareFind(Map<String, Set<String>> results) {
+        var entries = new ArrayList<>(results.entrySet());
+        String baseName = entries.get(0).getKey();
+        Set<String> baseline = entries.get(0).getValue();
+
+        boolean ok = true;
+        for (int i = 1; i < entries.size(); i++) {
+            if (!baseline.equals(entries.get(i).getValue())) {
+                ok = false;
+                break;
+            }
+        }
+
         if (ok) {
-            System.out.printf("  MATCH — %d IDs identical across all 4 targets%n", mongo.size());
+            System.out.printf("  MATCH — %d IDs identical across all %d targets%n",
+                    baseline.size(), entries.size());
         } else {
-            System.out.printf("  ✗ MISMATCH — Mongo=%d, Rel=%d, DV=%d, DV-Mongo=%d%n",
-                    mongo.size(), rel.size(), dv.size(), dvMongo.size());
-            Set<String> mongoNotRel = diff(mongo, rel);
-            Set<String> relNotMongo = diff(rel, mongo);
-            Set<String> mongoNotDv = diff(mongo, dv);
-            Set<String> mongoNotDvMongo = diff(mongo, dvMongo);
-            if (!mongoNotRel.isEmpty())
-                System.out.printf("    In Mongo NOT Rel (%d): %s%n", mongoNotRel.size(), first(mongoNotRel, 3));
-            if (!relNotMongo.isEmpty())
-                System.out.printf("    In Rel NOT Mongo (%d): %s%n", relNotMongo.size(), first(relNotMongo, 3));
-            if (!mongoNotDv.isEmpty())
-                System.out.printf("    In Mongo NOT DV (%d): %s%n", mongoNotDv.size(), first(mongoNotDv, 3));
-            if (!mongoNotDvMongo.isEmpty())
-                System.out.printf("    In Mongo NOT DV-Mongo (%d): %s%n", mongoNotDvMongo.size(), first(mongoNotDvMongo, 3));
+            StringBuilder msg = new StringBuilder();
+            for (var entry : entries) {
+                if (!msg.isEmpty()) msg.append(", ");
+                msg.append(entry.getKey()).append("=").append(entry.getValue().size());
+            }
+            System.out.printf("  X MISMATCH — %s%n", msg);
+            for (int i = 1; i < entries.size(); i++) {
+                String tName = entries.get(i).getKey();
+                Set<String> tIds = entries.get(i).getValue();
+                Set<String> baseNotT = diff(baseline, tIds);
+                Set<String> tNotBase = diff(tIds, baseline);
+                if (!baseNotT.isEmpty())
+                    System.out.printf("    In %s NOT %s (%d): %s%n", baseName, tName, baseNotT.size(), first(baseNotT, 3));
+                if (!tNotBase.isEmpty())
+                    System.out.printf("    In %s NOT %s (%d): %s%n", tName, baseName, tNotBase.size(), first(tNotBase, 3));
+            }
         }
         return ok;
     }
@@ -369,12 +532,12 @@ public class AllQueryRunner {
     }
 
     private static void printTarget(String name, long elapsedNanos) {
-        System.out.printf("  ▸ %s (%.2f ms)%n", name, elapsedNanos / 1_000_000.0);
+        System.out.printf("  > %s (%.2f ms)%n", name, elapsedNanos / 1_000_000.0);
     }
 
     private static void printAggHeader() {
         System.out.printf("    %-4s %-20s %15s %8s%n", "#", "Advisor ID", "Market Value", "Accts");
-        System.out.printf("    %-4s %-20s %15s %8s%n", "──", "──────────────────", "─────────────", "─────");
+        System.out.printf("    %-4s %-20s %15s %8s%n", "--", "------------------", "-------------", "-----");
     }
 
     private static void printAggRow(int idx, String[] row) {

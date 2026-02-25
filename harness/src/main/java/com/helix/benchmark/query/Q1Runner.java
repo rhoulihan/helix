@@ -45,6 +45,12 @@ public class Q1Runner {
         populateRegistry(connMgr, registry);
 
         QueryParameterGenerator paramGen = new QueryParameterGenerator(registry);
+        // Pre-sample parameters from actual data
+        String initConnStr = connMgr.getMongoConnectionString(DatabaseTarget.MONGO_NATIVE);
+        String initDbName = connMgr.getDatabaseName(DatabaseTarget.MONGO_NATIVE);
+        try (MongoClient initClient = MongoClients.create(initConnStr)) {
+            paramGen.initFromData(initClient.getDatabase(initDbName), 50);
+        }
         Map<String, Object> params = paramGen.generate(QueryDefinition.Q1);
         String advisorId = (String) params.get("advisorId");
 

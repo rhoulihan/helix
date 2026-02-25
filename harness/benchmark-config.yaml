@@ -5,9 +5,9 @@ benchmark:
   jdbcBatchSize: 500
   activeTargets:
     - MONGO_NATIVE
+    - ORACLE_JDBC
+    - ORACLE_MONGO_API
     - ORACLE_RELATIONAL
-    - ORACLE_DUALITY_VIEW
-    - ORACLE_MONGO_API_DV
 
 dataGeneration:
   advisorCount: 3000

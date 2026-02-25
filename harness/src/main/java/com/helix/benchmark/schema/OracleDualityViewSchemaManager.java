@@ -129,7 +129,7 @@ public class OracleDualityViewSchemaManager implements SchemaManager {
                     _id                              : id
                     dataOwnerPartyRoleId             : data_owner_party_role_id
                     visibleFlag                      : visible_flag
-                    totalViewableAcctsMarketValue    : total_viewable_accts_market_value
+                    totalViewableAccountsMarketValue : total_viewable_accts_market_value
                     investorWriId                    : investor_wri_id
                     etlSourceGroup                   : etl_source_group
                     finInstId                        : fin_inst_id

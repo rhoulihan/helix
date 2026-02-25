@@ -35,23 +35,25 @@ public class OracleDualityViewQueryExecutor extends OracleJdbcQueryExecutor {
 
     // Common investor json_value columns for Q1-Q4
     private void appendInvestorColumns(StringBuilder sql) {
-        sql.append("  SELECT json_value(b.data, '$._id') AS id,\n");
-        sql.append("         json_value(b.data, '$.investorFullName') AS investor_full_name,\n");
-        sql.append("         json_value(b.data, '$.investorType') AS investor_type,\n");
-        sql.append("         json_value(b.data, '$.investorLastName') AS investor_last_name,\n");
-        sql.append("         json_value(b.data, '$.investorFirstName') AS investor_first_name,\n");
-        sql.append("         json_value(b.data, '$.investorMiddleName') AS investor_middle_name,\n");
-        sql.append("         json_value(b.data, '$.investorCity') AS investor_city,\n");
-        sql.append("         json_value(b.data, '$.investorState') AS investor_state,\n");
-        sql.append("         json_value(b.data, '$.investorZipCode') AS investor_zip_code,\n");
-        sql.append("         json_value(b.data, '$.ssnTin') AS ssn_tin,\n");
-        sql.append("         json_value(b.data, '$.partyRoleId' RETURNING NUMBER) AS party_role_id,\n");
-        sql.append("         json_value(b.data, '$.partyId' RETURNING NUMBER) AS party_id,\n");
-        sql.append("         json_value(b.data, '$.finInstId' RETURNING NUMBER) AS fin_inst_id,\n");
-        sql.append("         json_value(b.data, '$.clientAccess') AS client_access,\n");
-        sql.append("         json_value(b.data, '$.ETLUpdateTS') AS etl_update_ts,\n");
-        sql.append("         jt.advisor_id, jt.viewable_mv, jt.viewable_accts AS no_of_viewable_accts,\n");
-        sql.append("         COUNT(*) OVER () AS total_count\n");
+        sql.append("  SELECT json_value(b.data, '$._id') AS \"_id\",\n");
+        sql.append("         json_value(b.data, '$.partyRoleId' RETURNING NUMBER) AS \"partyRoleId\",\n");
+        sql.append("         json_value(b.data, '$.partyId' RETURNING NUMBER) AS \"partyId\",\n");
+        sql.append("         json_value(b.data, '$.ssnTin') AS \"ssnTin\",\n");
+        sql.append("         json_value(b.data, '$.finInstId' RETURNING NUMBER) AS \"finInstId\",\n");
+        sql.append("         json_value(b.data, '$.investorType') AS \"investorType\",\n");
+        sql.append("         json_value(b.data, '$.investorLastName') AS \"investorLastName\",\n");
+        sql.append("         json_value(b.data, '$.investorFirstName') AS \"investorFirstName\",\n");
+        sql.append("         json_value(b.data, '$.investorMiddleName') AS \"investorMiddleName\",\n");
+        sql.append("         json_value(b.data, '$.investorFullName') AS \"investorFullName\",\n");
+        sql.append("         json_value(b.data, '$.investorCity') AS \"investorCity\",\n");
+        sql.append("         json_value(b.data, '$.investorState') AS \"investorState\",\n");
+        sql.append("         json_value(b.data, '$.investorZipCode') AS \"investorZipCode\",\n");
+        sql.append("         json_value(b.data, '$.clientAccess') AS \"clientAccess\",\n");
+        sql.append("         json_value(b.data, '$.ETLUpdateTS') AS \"ETLUpdateTS\",\n");
+        sql.append("         jt.advisor_id AS \"advisorId\",\n");
+        sql.append("         jt.viewable_mv AS \"viewableMarketValue\",\n");
+        sql.append("         jt.viewable_accts AS \"noOfViewableAccts\",\n");
+        sql.append("         COUNT(*) OVER () AS \"totalCount\"\n");
     }
 
     // Common JSON_TABLE for advisors
@@ -198,7 +200,7 @@ public class OracleDualityViewQueryExecutor extends OracleJdbcQueryExecutor {
         sql.append("  AND json_exists(b.data, '$.personaNms[*]?(@.personaNm == $pnm)' PASSING ? AS \"pnm\")\n");
         p.add(personaNm);
         sql.append("  AND NOT json_value(b.data, '$.visibleFlag') = 'N'\n");
-        sql.append("  AND json_value(b.data, '$.totalViewableAcctsMarketValue' RETURNING NUMBER) BETWEEN ? AND ?\n");
+        sql.append("  AND json_value(b.data, '$.totalViewableAccountsMarketValue' RETURNING NUMBER) BETWEEN ? AND ?\n");
         p.add(minMv);
         p.add(maxMv);
 
@@ -222,7 +224,7 @@ public class OracleDualityViewQueryExecutor extends OracleJdbcQueryExecutor {
         sql.append("  AND json_exists(b.data, '$.partyRoleIds[*]?(@.partyRoleId == $uid)' PASSING ? AS \"uid\")\n");
         p.add(pxPartyRoleId);
         sql.append("  AND NOT json_value(b.data, '$.visibleFlag') = 'N'\n");
-        sql.append("  AND json_value(b.data, '$.totalViewableAcctsMarketValue' RETURNING NUMBER) BETWEEN ? AND ?\n");
+        sql.append("  AND json_value(b.data, '$.totalViewableAccountsMarketValue' RETURNING NUMBER) BETWEEN ? AND ?\n");
         p.add(minMv);
         p.add(maxMv);
 

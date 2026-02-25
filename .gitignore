@@ -24,6 +24,9 @@ docker/oracle-data/
 
 # Benchmark output
 harness/benchmark-report*.html
+harness/query-results.html
+harness/query-results.zip
+harness/dependency-reduced-pom.xml
 
 # Claude
 .claude/

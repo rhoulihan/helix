@@ -43,6 +43,38 @@ public class OracleJdbcQueryExecutor {
         };
     }
 
+    // Common investor columns for Q1-Q4 aggregation queries
+    void appendJdbcInvestorColumns(StringBuilder sql) {
+        sql.append("  SELECT json_value(b.data, '$._id') AS \"_id\",\n");
+        sql.append("         json_value(b.data, '$.partyRoleId' RETURNING NUMBER) AS \"partyRoleId\",\n");
+        sql.append("         json_value(b.data, '$.partyId' RETURNING NUMBER) AS \"partyId\",\n");
+        sql.append("         json_value(b.data, '$.ssnTin') AS \"ssnTin\",\n");
+        sql.append("         json_value(b.data, '$.finInstId' RETURNING NUMBER) AS \"finInstId\",\n");
+        sql.append("         json_value(b.data, '$.investorType') AS \"investorType\",\n");
+        sql.append("         json_value(b.data, '$.investorLastName') AS \"investorLastName\",\n");
+        sql.append("         json_value(b.data, '$.investorFirstName') AS \"investorFirstName\",\n");
+        sql.append("         json_value(b.data, '$.investorMiddleName') AS \"investorMiddleName\",\n");
+        sql.append("         json_value(b.data, '$.investorFullName') AS \"investorFullName\",\n");
+        sql.append("         json_value(b.data, '$.investorCity') AS \"investorCity\",\n");
+        sql.append("         json_value(b.data, '$.investorState') AS \"investorState\",\n");
+        sql.append("         json_value(b.data, '$.investorZipCode') AS \"investorZipCode\",\n");
+        sql.append("         json_value(b.data, '$.clientAccess') AS \"clientAccess\",\n");
+        sql.append("         json_value(b.data, '$.ETLUpdateTS') AS \"ETLUpdateTS\",\n");
+        sql.append("         jt.advisor_id AS \"advisorId\",\n");
+        sql.append("         jt.viewable_mv AS \"viewableMarketValue\",\n");
+        sql.append("         jt.viewable_accts AS \"noOfViewableAccts\",\n");
+        sql.append("         COUNT(*) OVER () AS \"totalCount\"\n");
+    }
+
+    void appendJdbcAdvisorJsonTable(StringBuilder sql, String table) {
+        sql.append("  FROM ").append(table).append(" b,\n");
+        sql.append("       JSON_TABLE(b.data, '$.advisors[*]' COLUMNS (\n");
+        sql.append("           advisor_id    VARCHAR2(30) PATH '$.advisorId',\n");
+        sql.append("           viewable_mv   NUMBER       PATH '$.viewableMarketValue',\n");
+        sql.append("           viewable_accts NUMBER      PATH '$.noOfViewableAccts'\n");
+        sql.append("       )) jt\n");
+    }
+
     // --- Q1: BookRoleInvestor - Investor list by advisor ---
     private SqlQuery buildQ1Sql(Map<String, Object> params) {
         String advisorId = (String) params.get("advisorId");
@@ -51,13 +83,8 @@ public class OracleJdbcQueryExecutor {
         List<Object> p = new ArrayList<>();
         StringBuilder sql = new StringBuilder();
         sql.append("SELECT * FROM (\n");
-        sql.append("  SELECT jt.*, COUNT(*) OVER () AS total_count\n");
-        sql.append("  FROM ").append(table).append(" b,\n");
-        sql.append("       JSON_TABLE(b.data, '$.advisors[*]' COLUMNS (\n");
-        sql.append("           advisor_id    VARCHAR2(30) PATH '$.advisorId',\n");
-        sql.append("           viewable_mv   NUMBER       PATH '$.viewableMarketValue',\n");
-        sql.append("           viewable_accts NUMBER      PATH '$.noOfViewableAccts'\n");
-        sql.append("       )) jt\n");
+        appendJdbcInvestorColumns(sql);
+        appendJdbcAdvisorJsonTable(sql, table);
         sql.append("  WHERE json_exists(b.data, '$.advisors[*]?(@.advisorId == $aid)' PASSING ? AS \"aid\")\n");
         p.add(advisorId);
         sql.append("    AND json_value(b.data, '$.investorType') = 'Client'\n");
@@ -82,13 +109,8 @@ public class OracleJdbcQueryExecutor {
         List<Object> p = new ArrayList<>();
         StringBuilder sql = new StringBuilder();
         sql.append("SELECT * FROM (\n");
-        sql.append("  SELECT jt.*, COUNT(*) OVER () AS total_count\n");
-        sql.append("  FROM ").append(table).append(" b,\n");
-        sql.append("       JSON_TABLE(b.data, '$.advisors[*]' COLUMNS (\n");
-        sql.append("           advisor_id    VARCHAR2(30) PATH '$.advisorId',\n");
-        sql.append("           viewable_mv   NUMBER       PATH '$.viewableMarketValue',\n");
-        sql.append("           viewable_accts NUMBER      PATH '$.noOfViewableAccts'\n");
-        sql.append("       )) jt\n");
+        appendJdbcInvestorColumns(sql);
+        appendJdbcAdvisorJsonTable(sql, table);
         sql.append("  WHERE json_exists(b.data, '$.advisors[*]?(@.advisorId == $aid)' PASSING ? AS \"aid\")\n");
         p.add(advisorId);
         sql.append("    AND json_value(b.data, '$.investorType') = 'Client'\n");
@@ -117,13 +139,8 @@ public class OracleJdbcQueryExecutor {
         List<Object> p = new ArrayList<>();
         StringBuilder sql = new StringBuilder();
         sql.append("SELECT * FROM (\n");
-        sql.append("  SELECT jt.*, COUNT(*) OVER () AS total_count\n");
-        sql.append("  FROM ").append(table).append(" b,\n");
-        sql.append("       JSON_TABLE(b.data, '$.advisors[*]' COLUMNS (\n");
-        sql.append("           advisor_id    VARCHAR2(30) PATH '$.advisorId',\n");
-        sql.append("           viewable_mv   NUMBER       PATH '$.viewableMarketValue',\n");
-        sql.append("           viewable_accts NUMBER      PATH '$.noOfViewableAccts'\n");
-        sql.append("       )) jt\n");
+        appendJdbcInvestorColumns(sql);
+        appendJdbcAdvisorJsonTable(sql, table);
         sql.append("  WHERE json_exists(b.data, '$.advisors[*]?(@.advisorId == $aid)' PASSING ? AS \"aid\")\n");
         p.add(advisorId);
         sql.append("    AND json_exists(b.data, '$.entitlements.advisoryContext[*]?(@ == $ctx)' PASSING ? AS \"ctx\")\n");
@@ -152,13 +169,8 @@ public class OracleJdbcQueryExecutor {
         List<Object> p = new ArrayList<>();
         StringBuilder sql = new StringBuilder();
         sql.append("SELECT * FROM (\n");
-        sql.append("  SELECT jt.*, COUNT(*) OVER () AS total_count\n");
-        sql.append("  FROM ").append(table).append(" b,\n");
-        sql.append("       JSON_TABLE(b.data, '$.advisors[*]' COLUMNS (\n");
-        sql.append("           advisor_id    VARCHAR2(30) PATH '$.advisorId',\n");
-        sql.append("           viewable_mv   NUMBER       PATH '$.viewableMarketValue',\n");
-        sql.append("           viewable_accts NUMBER      PATH '$.noOfViewableAccts'\n");
-        sql.append("       )) jt\n");
+        appendJdbcInvestorColumns(sql);
+        appendJdbcAdvisorJsonTable(sql, table);
         sql.append("  WHERE json_exists(b.data, '$.advisors[*]?(@.advisorId == $aid)' PASSING ? AS \"aid\")\n");
         p.add(advisorId);
         sql.append("    AND json_value(b.data, '$.investorType') = 'Client'\n");

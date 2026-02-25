@@ -24,9 +24,10 @@ public class ResultValidator {
 
     public static boolean validate(ConnectionManager connMgr, HikariDataSource jdbcDs,
                                     QueryParameterGenerator paramGen, int runsPerQuery) {
-        log.info("=== Result Validation: Comparing all targets ===");
+        log.info("=== Result Validation: Comparing all 6 targets ===");
 
         MongoQueryExecutor mongoExec = new MongoQueryExecutor();
+        OracleJdbcQueryExecutor oracleJdbcExec = new OracleJdbcQueryExecutor();
         OracleRelationalQueryExecutor relExec = new OracleRelationalQueryExecutor();
         OracleDualityViewQueryExecutor dvExec = new OracleDualityViewQueryExecutor();
 
@@ -40,10 +41,10 @@ public class ResultValidator {
                     boolean ok;
                     if (query.isAggregation()) {
                         ok = validateAggregation(query, params, connMgr, jdbcDs,
-                                mongoExec, relExec, dvExec, run);
+                                mongoExec, oracleJdbcExec, relExec, dvExec, run);
                     } else {
                         ok = validateFind(query, params, connMgr, jdbcDs,
-                                mongoExec, relExec, dvExec, run);
+                                mongoExec, oracleJdbcExec, relExec, dvExec, run);
                     }
                     if (ok) passed++;
                     else failed++;
@@ -63,50 +64,53 @@ public class ResultValidator {
     private static boolean validateAggregation(QueryDefinition query, Map<String, Object> params,
                                                 ConnectionManager connMgr, HikariDataSource jdbcDs,
                                                 MongoQueryExecutor mongoExec,
+                                                OracleJdbcQueryExecutor oracleJdbcExec,
                                                 OracleRelationalQueryExecutor relExec,
                                                 OracleDualityViewQueryExecutor dvExec,
                                                 int run) throws Exception {
-        // MongoDB
-        String connStr = connMgr.getMongoConnectionString(DatabaseTarget.MONGO_NATIVE);
-        String dbName = connMgr.getDatabaseName(DatabaseTarget.MONGO_NATIVE);
-        List<String[]> mongoRows;
-        try (MongoClient client = MongoClients.create(connStr)) {
-            MongoDatabase db = client.getDatabase(dbName);
-            MongoCollection<Document> col = db.getCollection(query.embeddedCollection());
-            var pipeline = mongoExec.buildAggregationPipeline(query, SchemaModel.EMBEDDED,
-                    params, DatabaseTarget.MONGO_NATIVE);
-            List<Document> docs = col.aggregate(pipeline).into(new ArrayList<>());
-            mongoRows = new ArrayList<>();
-            for (Document doc : docs) {
-                mongoRows.add(extractAggRow(doc));
-            }
-        }
+        Map<String, List<String[]>> results = new LinkedHashMap<>();
 
-        // Relational
-        List<String[]> relRows = executeJdbcAgg(jdbcDs, relExec, query, params);
+        // MongoDB Native
+        results.put("Mongo", executeMongoAgg(connMgr, mongoExec, query, params,
+                DatabaseTarget.MONGO_NATIVE));
 
-        // Duality View
-        List<String[]> dvRows = executeJdbcAgg(jdbcDs, dvExec, query, params);
+        // Oracle JDBC (SODA JSON collections)
+        results.put("JDBC", executeJdbcAgg(jdbcDs, oracleJdbcExec, query, params));
+
+        // Oracle MongoDB API (non-DV — native collection names, native field paths)
+        results.put("MongoAPI", executeMongoAgg(connMgr, mongoExec, query, params,
+                DatabaseTarget.ORACLE_MONGO_API));
+
+        // Oracle Relational
+        results.put("Rel", executeJdbcAgg(jdbcDs, relExec, query, params));
+
+        // Oracle Duality View
+        results.put("DV", executeJdbcAgg(jdbcDs, dvExec, query, params));
 
         // Oracle Mongo API (DV)
-        String dvMongoConnStr = connMgr.getMongoConnectionString(DatabaseTarget.ORACLE_MONGO_API_DV);
-        String dvMongoDbName = connMgr.getDatabaseName(DatabaseTarget.ORACLE_MONGO_API_DV);
-        List<String[]> dvMongoRows;
-        try (MongoClient client = MongoClients.create(dvMongoConnStr)) {
-            MongoDatabase db = client.getDatabase(dvMongoDbName);
-            String collName = mongoExec.getCollectionName(query, SchemaModel.EMBEDDED, DatabaseTarget.ORACLE_MONGO_API_DV);
-            MongoCollection<Document> col = db.getCollection(collName);
-            var pipeline = mongoExec.buildAggregationPipeline(query, SchemaModel.EMBEDDED,
-                    params, DatabaseTarget.ORACLE_MONGO_API_DV);
-            List<Document> docs = col.aggregate(pipeline).into(new ArrayList<>());
-            dvMongoRows = new ArrayList<>();
-            for (Document doc : docs) {
-                dvMongoRows.add(extractAggRow(doc));
-            }
-        }
+        results.put("DV-Mongo", executeMongoAgg(connMgr, mongoExec, query, params,
+                DatabaseTarget.ORACLE_MONGO_API_DV));
 
-        // Compare
-        return compareAggResults(query, run, params, mongoRows, relRows, dvRows, dvMongoRows);
+        return compareAggResults(query, run, params, results);
+    }
+
+    private static List<String[]> executeMongoAgg(ConnectionManager connMgr, MongoQueryExecutor mongoExec,
+                                                    QueryDefinition query, Map<String, Object> params,
+                                                    DatabaseTarget target) {
+        String connStr = connMgr.getMongoConnectionString(target);
+        String dbName = connMgr.getDatabaseName(target);
+        try (MongoClient client = MongoClients.create(connStr)) {
+            MongoDatabase db = client.getDatabase(dbName);
+            String collName = mongoExec.getCollectionName(query, SchemaModel.EMBEDDED, target);
+            MongoCollection<Document> col = db.getCollection(collName);
+            var pipeline = mongoExec.buildAggregationPipeline(query, SchemaModel.EMBEDDED, params, target);
+            List<Document> docs = col.aggregate(pipeline).into(new ArrayList<>());
+            List<String[]> rows = new ArrayList<>();
+            for (Document doc : docs) {
+                rows.add(extractAggRow(doc));
+            }
+            return rows;
+        }
     }
 
     private static String[] extractAggRow(Document doc) {
@@ -130,9 +134,9 @@ public class ResultValidator {
             }
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
-                    String aid = rs.getString("advisor_id");
-                    double mv = rs.getDouble("viewable_mv");
-                    String id = rs.getString("id");
+                    String aid = rs.getString("advisorId");
+                    double mv = rs.getDouble("viewableMarketValue");
+                    String id = rs.getString("_id");
                     rows.add(new String[]{aid, fmt(mv), id != null ? id : "null"});
                 }
             }
@@ -142,31 +146,55 @@ public class ResultValidator {
 
     private static boolean compareAggResults(QueryDefinition query, int run,
                                               Map<String, Object> params,
-                                              List<String[]> mongo, List<String[]> rel,
-                                              List<String[]> dv, List<String[]> dvMongo) {
+                                              Map<String, List<String[]>> results) {
         boolean ok = true;
         String label = query.queryName() + " run " + run;
 
-        if (mongo.size() != rel.size() || mongo.size() != dv.size() || mongo.size() != dvMongo.size()) {
-            log.warn("  MISMATCH {} counts: Mongo={}, Rel={}, DV={}, DV-Mongo={} | params={}",
-                    label, mongo.size(), rel.size(), dv.size(), dvMongo.size(), paramSummary(params));
+        var entries = new ArrayList<>(results.entrySet());
+        List<String[]> baseline = entries.get(0).getValue();
+
+        // Check sizes
+        boolean sizeMismatch = false;
+        for (int i = 1; i < entries.size(); i++) {
+            if (entries.get(i).getValue().size() != baseline.size()) {
+                sizeMismatch = true;
+                break;
+            }
+        }
+        if (sizeMismatch) {
+            StringBuilder msg = new StringBuilder();
+            for (var entry : entries) {
+                if (!msg.isEmpty()) msg.append(", ");
+                msg.append(entry.getKey()).append("=").append(entry.getValue().size());
+            }
+            log.warn("  MISMATCH {} counts: {} | params={}", label, msg, paramSummary(params));
             ok = false;
         }
 
-        // Compare row-by-row (results are ordered by viewable_mv DESC)
-        int max = Math.min(mongo.size(), Math.min(rel.size(), Math.min(dv.size(), dvMongo.size())));
+        // Row-by-row comparison
+        int minSize = entries.stream().mapToInt(e -> e.getValue().size()).min().orElse(0);
         int rowMismatches = 0;
-        for (int i = 0; i < max; i++) {
-            String mId = mongo.get(i)[2], rId = rel.get(i)[2], dId = dv.get(i)[2], dmId = dvMongo.get(i)[2];
-            String mMv = mongo.get(i)[1], rMv = rel.get(i)[1], dMv = dv.get(i)[1], dmMv = dvMongo.get(i)[1];
-            String mAid = mongo.get(i)[0], rAid = rel.get(i)[0], dAid = dv.get(i)[0], dmAid = dvMongo.get(i)[0];
-
-            if (!Objects.equals(mAid, rAid) || !Objects.equals(mAid, dAid) || !Objects.equals(mAid, dmAid)
-                    || !Objects.equals(mMv, rMv) || !Objects.equals(mMv, dMv) || !Objects.equals(mMv, dmMv)
-                    || !Objects.equals(mId, rId) || !Objects.equals(mId, dId) || !Objects.equals(mId, dmId)) {
+        for (int i = 0; i < minSize; i++) {
+            String[] baseRow = baseline.get(i);
+            boolean rowOk = true;
+            for (int j = 1; j < entries.size(); j++) {
+                String[] otherRow = entries.get(j).getValue().get(i);
+                if (!Objects.equals(baseRow[0], otherRow[0])
+                        || !Objects.equals(baseRow[1], otherRow[1])
+                        || !Objects.equals(baseRow[2], otherRow[2])) {
+                    rowOk = false;
+                    break;
+                }
+            }
+            if (!rowOk) {
                 if (rowMismatches < 3) {
-                    log.warn("  MISMATCH {} row {}: Mongo=[{},{},{}] Rel=[{},{},{}] DV=[{},{},{}] DV-Mongo=[{},{},{}]",
-                            label, i, mId, mAid, mMv, rId, rAid, rMv, dId, dAid, dMv, dmId, dmAid, dmMv);
+                    StringBuilder msg = new StringBuilder();
+                    for (var entry : entries) {
+                        String[] row = entry.getValue().get(i);
+                        msg.append(entry.getKey()).append("=[").append(row[2]).append(",")
+                                .append(row[0]).append(",").append(row[1]).append("] ");
+                    }
+                    log.warn("  MISMATCH {} row {}: {}", label, i, msg);
                 }
                 rowMismatches++;
                 ok = false;
@@ -177,7 +205,7 @@ public class ResultValidator {
         }
 
         if (ok) {
-            log.info("  PASS {} — {} rows match | params={}", label, mongo.size(), paramSummary(params));
+            log.info("  PASS {} — {} rows match | params={}", label, baseline.size(), paramSummary(params));
         }
         return ok;
     }
@@ -187,58 +215,61 @@ public class ResultValidator {
     private static boolean validateFind(QueryDefinition query, Map<String, Object> params,
                                          ConnectionManager connMgr, HikariDataSource jdbcDs,
                                          MongoQueryExecutor mongoExec,
+                                         OracleJdbcQueryExecutor oracleJdbcExec,
                                          OracleRelationalQueryExecutor relExec,
                                          OracleDualityViewQueryExecutor dvExec,
                                          int run) throws Exception {
-        // MongoDB — collect full documents
-        String connStr = connMgr.getMongoConnectionString(DatabaseTarget.MONGO_NATIVE);
-        String dbName = connMgr.getDatabaseName(DatabaseTarget.MONGO_NATIVE);
-        Map<String, JsonNode> mongoDocs;
-        try (MongoClient client = MongoClients.create(connStr)) {
-            MongoDatabase db = client.getDatabase(dbName);
-            MongoCollection<Document> col = db.getCollection(query.embeddedCollection());
-            var filter = mongoExec.buildFindFilter(query, SchemaModel.EMBEDDED, params);
-            List<Document> docs = col.find(filter).into(new ArrayList<>());
-            mongoDocs = new TreeMap<>();
-            for (Document doc : docs) {
-                String id = doc.getString("_id");
-                mongoDocs.put(id, mapper.readTree(doc.toJson()));
-            }
-        }
+        Map<String, Set<String>> results = new LinkedHashMap<>();
 
-        // Relational — now returns JSON documents via JSON_OBJECT
-        Map<String, JsonNode> relDocs = executeJdbcFindDocs(jdbcDs, relExec, query, params);
+        // MongoDB Native
+        results.put("Mongo", executeMongoFindIds(connMgr, mongoExec, query, params,
+                DatabaseTarget.MONGO_NATIVE));
 
-        // Duality View — returns json_serialize(data)
-        Map<String, JsonNode> dvDocs = executeJdbcFindDocs(jdbcDs, dvExec, query, params);
+        // Oracle JDBC (SODA JSON collections)
+        results.put("JDBC", executeJdbcFindIds(jdbcDs, oracleJdbcExec, query, params));
 
-        // Oracle Mongo API (DV) — via MongoDB driver
-        String dvMongoConnStr = connMgr.getMongoConnectionString(DatabaseTarget.ORACLE_MONGO_API_DV);
-        String dvMongoDbName = connMgr.getDatabaseName(DatabaseTarget.ORACLE_MONGO_API_DV);
-        Map<String, JsonNode> dvMongoDocs;
-        try (MongoClient client = MongoClients.create(dvMongoConnStr)) {
-            MongoDatabase db = client.getDatabase(dvMongoDbName);
-            String collName = mongoExec.getCollectionName(query, SchemaModel.EMBEDDED, DatabaseTarget.ORACLE_MONGO_API_DV);
-            MongoCollection<Document> col = db.getCollection(collName);
-            var filter = mongoExec.buildFindFilter(query, SchemaModel.EMBEDDED, params);
-            List<Document> docs = col.find(filter).into(new ArrayList<>());
-            dvMongoDocs = new TreeMap<>();
-            for (Document doc : docs) {
-                String id = doc.getString("_id");
-                dvMongoDocs.put(id, mapper.readTree(doc.toJson()));
-            }
-        }
+        // Oracle MongoDB API (non-DV)
+        results.put("MongoAPI", executeMongoFindIds(connMgr, mongoExec, query, params,
+                DatabaseTarget.ORACLE_MONGO_API));
 
-        return compareFindResults(query, run, params,
-                mongoDocs.keySet(), relDocs.keySet(), dvDocs.keySet(), dvMongoDocs.keySet());
+        // Oracle Relational
+        results.put("Rel", executeJdbcFindIds(jdbcDs, relExec, query, params));
+
+        // Oracle Duality View
+        results.put("DV", executeJdbcFindIds(jdbcDs, dvExec, query, params));
+
+        // Oracle Mongo API (DV)
+        results.put("DV-Mongo", executeMongoFindIds(connMgr, mongoExec, query, params,
+                DatabaseTarget.ORACLE_MONGO_API_DV));
+
+        return compareFindResults(query, run, params, results);
     }
 
-    private static Map<String, JsonNode> executeJdbcFindDocs(HikariDataSource ds,
-                                                               OracleJdbcQueryExecutor exec,
-                                                               QueryDefinition query,
-                                                               Map<String, Object> params) throws Exception {
+    private static Set<String> executeMongoFindIds(ConnectionManager connMgr, MongoQueryExecutor mongoExec,
+                                                     QueryDefinition query, Map<String, Object> params,
+                                                     DatabaseTarget target) {
+        String connStr = connMgr.getMongoConnectionString(target);
+        String dbName = connMgr.getDatabaseName(target);
+        try (MongoClient client = MongoClients.create(connStr)) {
+            MongoDatabase db = client.getDatabase(dbName);
+            String collName = mongoExec.getCollectionName(query, SchemaModel.EMBEDDED, target);
+            MongoCollection<Document> col = db.getCollection(collName);
+            var filter = mongoExec.buildFindFilter(query, SchemaModel.EMBEDDED, params, target);
+            List<Document> docs = col.find(filter).into(new ArrayList<>());
+            Set<String> ids = new TreeSet<>();
+            for (Document doc : docs) {
+                ids.add(doc.getString("_id"));
+            }
+            return ids;
+        }
+    }
+
+    private static Set<String> executeJdbcFindIds(HikariDataSource ds,
+                                                    OracleJdbcQueryExecutor exec,
+                                                    QueryDefinition query,
+                                                    Map<String, Object> params) throws Exception {
         OracleJdbcQueryExecutor.SqlQuery sqlQuery = exec.buildSql(query, SchemaModel.EMBEDDED, params);
-        Map<String, JsonNode> docs = new TreeMap<>();
+        Set<String> ids = new TreeSet<>();
         try (Connection conn = ds.getConnection();
              var ps = conn.prepareStatement(sqlQuery.sql())) {
             for (int i = 0; i < sqlQuery.parameters().size(); i++) {
@@ -246,14 +277,13 @@ public class ResultValidator {
             }
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
-                    // Both relational (JSON_OBJECT) and DV (json_serialize) return JSON in column 1
                     String json = rs.getString(1);
                     if (json != null) {
                         try {
                             JsonNode node = mapper.readTree(json);
                             JsonNode idNode = node.get("_id");
                             if (idNode != null) {
-                                docs.put(idNode.asText(), node);
+                                ids.add(idNode.asText());
                             }
                         } catch (Exception e) {
                             log.debug("Could not parse JSON: {}", e.getMessage());
@@ -262,57 +292,59 @@ public class ResultValidator {
                 }
             }
         }
-        return docs;
+        return ids;
     }
 
     private static boolean compareFindResults(QueryDefinition query, int run,
                                                Map<String, Object> params,
-                                               Set<String> mongo, Set<String> rel,
-                                               Set<String> dv, Set<String> dvMongo) {
+                                               Map<String, Set<String>> results) {
         boolean ok = true;
         String label = query.queryName() + " run " + run;
 
-        if (mongo.size() != rel.size() || mongo.size() != dv.size() || mongo.size() != dvMongo.size()) {
-            log.warn("  MISMATCH {} counts: Mongo={}, Rel={}, DV={}, DV-Mongo={} | params={}",
-                    label, mongo.size(), rel.size(), dv.size(), dvMongo.size(), paramSummary(params));
+        var entries = new ArrayList<>(results.entrySet());
+        String baseName = entries.get(0).getKey();
+        Set<String> baseline = entries.get(0).getValue();
+
+        // Check sizes
+        boolean sizeMismatch = false;
+        for (int i = 1; i < entries.size(); i++) {
+            if (entries.get(i).getValue().size() != baseline.size()) {
+                sizeMismatch = true;
+                break;
+            }
+        }
+        if (sizeMismatch) {
+            StringBuilder msg = new StringBuilder();
+            for (var entry : entries) {
+                if (!msg.isEmpty()) msg.append(", ");
+                msg.append(entry.getKey()).append("=").append(entry.getValue().size());
+            }
+            log.warn("  MISMATCH {} counts: {} | params={}", label, msg, paramSummary(params));
             ok = false;
         }
 
-        // ID set differences
-        Set<String> mongoNotRel = diff(mongo, rel);
-        Set<String> relNotMongo = diff(rel, mongo);
-        Set<String> mongoNotDv = diff(mongo, dv);
-        Set<String> dvNotMongo = diff(dv, mongo);
-        Set<String> mongoNotDvMongo = diff(mongo, dvMongo);
-        Set<String> dvMongoNotMongo = diff(dvMongo, mongo);
+        // ID set differences vs baseline
+        for (int i = 1; i < entries.size(); i++) {
+            String targetName = entries.get(i).getKey();
+            Set<String> targetIds = entries.get(i).getValue();
 
-        if (!mongoNotRel.isEmpty()) {
-            log.warn("  {} in Mongo NOT Rel: {} (first 3: {})", label, mongoNotRel.size(), first3(mongoNotRel));
-            ok = false;
-        }
-        if (!relNotMongo.isEmpty()) {
-            log.warn("  {} in Rel NOT Mongo: {} (first 3: {})", label, relNotMongo.size(), first3(relNotMongo));
-            ok = false;
-        }
-        if (!mongoNotDv.isEmpty()) {
-            log.warn("  {} in Mongo NOT DV: {} (first 3: {})", label, mongoNotDv.size(), first3(mongoNotDv));
-            ok = false;
-        }
-        if (!dvNotMongo.isEmpty()) {
-            log.warn("  {} in DV NOT Mongo: {} (first 3: {})", label, dvNotMongo.size(), first3(dvNotMongo));
-            ok = false;
-        }
-        if (!mongoNotDvMongo.isEmpty()) {
-            log.warn("  {} in Mongo NOT DV-Mongo: {} (first 3: {})", label, mongoNotDvMongo.size(), first3(mongoNotDvMongo));
-            ok = false;
-        }
-        if (!dvMongoNotMongo.isEmpty()) {
-            log.warn("  {} in DV-Mongo NOT Mongo: {} (first 3: {})", label, dvMongoNotMongo.size(), first3(dvMongoNotMongo));
-            ok = false;
+            Set<String> baseNotTarget = diff(baseline, targetIds);
+            Set<String> targetNotBase = diff(targetIds, baseline);
+
+            if (!baseNotTarget.isEmpty()) {
+                log.warn("  {} in {} NOT {}: {} (first 3: {})", label, baseName, targetName,
+                        baseNotTarget.size(), first3(baseNotTarget));
+                ok = false;
+            }
+            if (!targetNotBase.isEmpty()) {
+                log.warn("  {} in {} NOT {}: {} (first 3: {})", label, targetName, baseName,
+                        targetNotBase.size(), first3(targetNotBase));
+                ok = false;
+            }
         }
 
         if (ok) {
-            log.info("  PASS {} — {} IDs match | params={}", label, mongo.size(), paramSummary(params));
+            log.info("  PASS {} — {} IDs match | params={}", label, baseline.size(), paramSummary(params));
         }
         return ok;
     }

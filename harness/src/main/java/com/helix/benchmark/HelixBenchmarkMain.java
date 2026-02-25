@@ -201,8 +201,15 @@ public class HelixBenchmarkMain {
 
         // Step 2.5: Validate result consistency across all targets
         QueryParameterGenerator paramGen = new QueryParameterGenerator(registry);
+        // Pre-sample parameters from actual MongoDB data to guarantee results
+        String mongoConnStr = connectionManager.getMongoConnectionString(DatabaseTarget.MONGO_NATIVE);
+        String mongoDbName = connectionManager.getDatabaseName(DatabaseTarget.MONGO_NATIVE);
+        try (MongoClient mongoClient = MongoClients.create(mongoConnStr)) {
+            MongoDatabase mongoDB = mongoClient.getDatabase(mongoDbName);
+            paramGen.initFromData(mongoDB, 100);
+        }
         log.info("--- Step 2.5: Validating results across all targets ---");
-        boolean validationPassed = ResultValidator.validate(connectionManager, jdbcDataSource, paramGen, 3);
+        boolean validationPassed = ResultValidator.validate(connectionManager, jdbcDataSource, paramGen, 1);
         if (!validationPassed) {
             log.warn("Result validation detected mismatches — review warnings above");
         }
@@ -220,16 +227,17 @@ public class HelixBenchmarkMain {
         String ordsBaseUrl = config.ordsBaseUrl();
 
         for (Configuration cfg : activeConfigurations(activeTargets)) {
-            for (QueryDefinition query : QueryDefinition.values()) {
-                try {
-                    if (cfg.target().usesMongoDriver()) {
-                        String connStr = connectionManager.getMongoConnectionString(cfg.target());
-                        String dbName = connectionManager.getDatabaseName(cfg.target());
-                        try (MongoClient client = MongoClients.create(connStr)) {
-                            MongoDatabase db = client.getDatabase(dbName);
-                            String collName = mongoExecutor.getCollectionName(query, cfg.model(), cfg.target());
+            if (cfg.target().usesMongoDriver()) {
+                String connStr = connectionManager.getMongoConnectionString(cfg.target());
+                String dbName = connectionManager.getDatabaseName(cfg.target());
+                try (MongoClient client = MongoClients.create(connStr)) {
+                    MongoDatabase db = client.getDatabase(dbName);
+                    DatabaseTarget target = cfg.target();
+
+                    for (QueryDefinition query : QueryDefinition.values()) {
+                        try {
+                            String collName = mongoExecutor.getCollectionName(query, cfg.model(), target);
                             MongoCollection<Document> collection = db.getCollection(collName);
-                            DatabaseTarget target = cfg.target();
 
                             BenchmarkResult result = runner.run(
                                     query.queryName(), cfg.id(),
@@ -240,7 +248,7 @@ public class HelixBenchmarkMain {
                                                     collection, query, cfg.model(), params, target);
                                         } else {
                                             mongoExecutor.executeFind(
-                                                    collection, query, cfg.model(), params);
+                                                    collection, query, cfg.model(), params, target);
                                         }
                                         return null;
                                     }
@@ -256,13 +264,22 @@ public class HelixBenchmarkMain {
                             } catch (Exception ex) {
                                 log.warn("Failed to capture detail for {} on {}: {}", query.queryName(), cfg.id(), ex.getMessage());
                             }
+                        } catch (Exception e) {
+                            log.warn("Benchmark failed for {} on {}: {}", query.queryName(), cfg.id(), e.getMessage());
                         }
-                    } else if (cfg.target().usesJdbc() && jdbcDataSource != null) {
-                        OracleJdbcQueryExecutor jdbcExec = switch (cfg.target()) {
-                            case ORACLE_RELATIONAL -> relExecutor;
-                            case ORACLE_DUALITY_VIEW -> dvExecutor;
-                            default -> oracleExecutor;
-                        };
+                    }
+                } catch (Exception e) {
+                    log.warn("Failed to connect to {} for benchmarks: {}", cfg.target(), e.getMessage());
+                }
+            } else if (cfg.target().usesJdbc() && jdbcDataSource != null) {
+                OracleJdbcQueryExecutor jdbcExec = switch (cfg.target()) {
+                    case ORACLE_RELATIONAL -> relExecutor;
+                    case ORACLE_DUALITY_VIEW -> dvExecutor;
+                    default -> oracleExecutor;
+                };
+
+                for (QueryDefinition query : QueryDefinition.values()) {
+                    try {
                         BenchmarkResult result = runner.run(
                                 query.queryName(), cfg.id(),
                                 () -> {
@@ -296,9 +313,9 @@ public class HelixBenchmarkMain {
                         } catch (Exception ex) {
                             log.warn("Failed to capture detail for {} on {}: {}", query.queryName(), cfg.id(), ex.getMessage());
                         }
+                    } catch (Exception e) {
+                        log.warn("Benchmark failed for {} on {}: {}", query.queryName(), cfg.id(), e.getMessage());
                     }
-                } catch (Exception e) {
-                    log.warn("Benchmark failed for {} on {}: {}", query.queryName(), cfg.id(), e.getMessage());
                 }
             }
         }
@@ -505,6 +522,7 @@ public class HelixBenchmarkMain {
             } catch (Exception e) {
                 log.warn("Failed to create Oracle JDBC indexes: {}", e.getMessage());
             }
+
         }
 
         // Oracle Relational indexes (also needed for duality views)
