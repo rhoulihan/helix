@@ -422,27 +422,73 @@ $limit    → 50
 
 **Oracle JDBC (JSON collections):**
 ```sql
-SELECT b.data, jt.advisor_id, jt.viewable_mv, jt.viewable_accts,
-       COUNT(*) OVER () AS total_count
-FROM jdbc_book_role_investor b,
-     JSON_TABLE(b.data, '$.advisors[*]' COLUMNS (...)) jt
-WHERE json_value(b.data, '$.investorType') = 'Client'
-  AND json_value(b.data, '$.viewableSource') = 'Y'
-  AND jt.advisor_id = ? AND jt.viewable_accts >= 1
-ORDER BY jt.viewable_mv DESC
-FETCH FIRST 50 ROWS ONLY
+SELECT * FROM (
+  SELECT json_value(b.data, '$._id') AS "_id",
+         json_value(b.data, '$.partyRoleId' RETURNING NUMBER) AS "partyRoleId",
+         json_value(b.data, '$.partyId' RETURNING NUMBER) AS "partyId",
+         json_value(b.data, '$.ssnTin') AS "ssnTin",
+         json_value(b.data, '$.finInstId' RETURNING NUMBER) AS "finInstId",
+         json_value(b.data, '$.investorType') AS "investorType",
+         json_value(b.data, '$.investorLastName') AS "investorLastName",
+         json_value(b.data, '$.investorFirstName') AS "investorFirstName",
+         json_value(b.data, '$.investorMiddleName') AS "investorMiddleName",
+         json_value(b.data, '$.investorFullName') AS "investorFullName",
+         json_value(b.data, '$.investorCity') AS "investorCity",
+         json_value(b.data, '$.investorState') AS "investorState",
+         json_value(b.data, '$.investorZipCode') AS "investorZipCode",
+         json_value(b.data, '$.clientAccess') AS "clientAccess",
+         json_value(b.data, '$.ETLUpdateTS') AS "ETLUpdateTS",
+         jt.advisor_id AS "advisorId",
+         jt.viewable_mv AS "viewableMarketValue",
+         jt.viewable_accts AS "noOfViewableAccts",
+         COUNT(*) OVER () AS "totalCount"
+  FROM jdbc_book_role_investor b,
+       JSON_TABLE(b.data, '$.advisors[*]' COLUMNS (
+           advisor_id     VARCHAR2(30) PATH '$.advisorId',
+           viewable_mv    NUMBER       PATH '$.viewableMarketValue',
+           viewable_accts NUMBER       PATH '$.noOfViewableAccts'
+       )) jt
+  WHERE json_exists(b.data, '$.advisors[*]?(@.advisorId == $aid)' PASSING ? AS "aid")
+    AND json_value(b.data, '$.investorType') = 'Client'
+    AND json_value(b.data, '$.viewableSource') = 'Y'
+    AND jt.advisor_id = ?
+    AND jt.viewable_accts >= 1
+  ORDER BY jt.viewable_mv DESC
+  FETCH FIRST 50 ROWS ONLY
+)
 ```
 
 **Oracle Relational:**
 ```sql
-SELECT b.*, a.advisor_id, a.viewable_mv, a.no_of_viewable_accts,
-       COUNT(*) OVER () AS total_count
-FROM rel_book_role_investor b
-JOIN rel_bri_advisors a ON a.investor_id = b.id
-WHERE b.investor_type = 'Client' AND b.viewable_source = 'Y'
-  AND a.advisor_id = ? AND a.no_of_viewable_accts >= 1
-ORDER BY a.viewable_mv DESC
-FETCH FIRST 50 ROWS ONLY
+SELECT * FROM (
+  SELECT b.id AS "_id",
+         b.party_role_id AS "partyRoleId",
+         b.party_id AS "partyId",
+         b.ssn_tin AS "ssnTin",
+         b.fin_inst_id AS "finInstId",
+         b.investor_type AS "investorType",
+         b.investor_last_name AS "investorLastName",
+         b.investor_first_name AS "investorFirstName",
+         b.investor_middle_name AS "investorMiddleName",
+         b.investor_full_name AS "investorFullName",
+         b.investor_city AS "investorCity",
+         b.investor_state AS "investorState",
+         b.investor_zip_code AS "investorZipCode",
+         b.client_access AS "clientAccess",
+         b.etl_update_ts AS "ETLUpdateTS",
+         a.advisor_id AS "advisorId",
+         a.viewable_mv AS "viewableMarketValue",
+         a.no_of_viewable_accts AS "noOfViewableAccts",
+         COUNT(*) OVER () AS "totalCount"
+  FROM rel_book_role_investor b
+  JOIN rel_bri_advisors a ON a.investor_id = b.id
+  WHERE a.advisor_id = ?
+    AND b.investor_type = 'Client'
+    AND b.viewable_source = 'Y'
+    AND a.no_of_viewable_accts >= 1
+  ORDER BY a.viewable_mv DESC
+  FETCH FIRST 50 ROWS ONLY
+)
 ```
 
 ---
